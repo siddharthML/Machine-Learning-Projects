@@ -1,0 +1,74 @@
+#LIBRARY
+library(dplyr)
+library(data.table)
+#instal.packages('quantmod')
+library(quantmod)
+library(scales)
+#to drop 1st autocorrelation lag only
+library(TSA)
+#Library for Ljung Box Diagram
+library(LSTS)
+#Augmented Dickey-Fuller Library
+library(tseries)
+#==============================
+#IMPORT DATASET
+copper.returns <- read.csv("/Users/siddharth/Desktop/Dissertation/Data/eikon/cu_shfe_prices.csv")
+View(copper.returns)
+#=============================
+#PLOT COPPER RETURNS
+copper.returns$Date <- as.Date(copper.returns$Date)
+require(ggplot2)
+ggplot(data = copper.returns, aes(Date, CLOSE)) + ylab("Copper Closing Price") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y"))
+#=============================
+#Select variables of interest
+copper <- subset(copper.returns, select = c(Date, CLOSE))
+#=============================
+#Variable Transform To Returns
+copper$returns <- Delt(copper$CLOSE)
+#=============================
+#Select New Variables
+copper <- subset(copper, select = c(Date, returns))
+#=============================
+#Drop NAs
+copper <- copper[-c(1),]
+plot.ts(copper$returns)
+#============================
+
+#Plot autocorrelation function
+#22 lags for 1 month
+acf(copper$returns, main = 'Autocorrelation - Copper Percentage Return on Closing Price', lag.max = 22, drop.lag.0 = TRUE)
+
+#252 lags (represents a year)
+acf(copper$returns, main = 'Autocorrelation - Copper Percentage Return on Closing Price', lag.max = 252, drop.lag.0 = TRUE)
+#===========================
+#Augmented Dickey-Fuller Test for Stationarity
+adf.test(copper$returns, alternative = c("stationary"))
+#KPSS Test for Stationarity
+kpss.test(copper$returns)
+#============================
+#Ljung Box Test for Lag 1
+Box.test(copper$returns, lag = 1, type = c("Ljung-Box"), fitdf = 0)
+#Plot Box Ljung Test for 2000 lags
+Box.Ljung.Test(copper$returns, lag = 2000)
+
+#=============================
+#Plot returns vs date for copper
+ggplot(data = copper, aes(Date, returns)) + ylab("Copper Percentage Returns") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y")) + stat_smooth(color = "#FC4E07", fill = "#FC4E07", method = "loess")
+#==============================
+
+#Create lags
+lag <- setDT(copper)[,paste0('return.lag', 1:22) := shift(copper$returns,1:22)]
+#Drop NAs
+lag <- na.omit(lag)
+
+#================================
+#Feature Importance
+
+library(randomForest)
+
+rf_model <- randomForest(returns~.-Date, data = lag, ntree = 1000, mtry = 8, nodesize = 5, importance = TRUE)
+
+varImpPlot(rf_model, main = "Lag Importance Copper")
+
+varImp(rf_model)
+#======================

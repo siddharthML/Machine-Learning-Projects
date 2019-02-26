@@ -1,0 +1,455 @@
+#LIBRARY
+library(dplyr)
+library(data.table)
+#instal.packages('quantmod')
+library(quantmod)
+library(scales)
+#to drop 1st autocorrelation lag only
+library(TSA)
+#Library for Ljung Box Diagram
+library(LSTS)
+#Augmented Dickey-Fuller Library
+library(tseries)
+#time related changes
+library(lubridate)
+#==============================
+#IMPORT DATASET
+copper.returns <- read.csv("/Users/siddharth/Desktop/Dissertation/Data/eikon/cu_shfe_prices.csv")
+View(copper.returns)
+#=============================
+#PLOT COPPER RETURNS
+copper.returns$Date <- as.Date(copper.returns$Date)
+require(ggplot2)
+ggplot(data = copper.returns, aes(Date, CLOSE)) + ylab("Copper Closing Price") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y"))
+#=============================
+#Select variables of interest
+copper <- subset(copper.returns, select = c(Date, CLOSE))
+#=============================
+#Variable Transform To Returns
+copper$returns <- Delt(copper$CLOSE)
+#=============================
+#Select New Variables
+copper <- subset(copper, select = c(Date, returns))
+#=============================
+#Drop NAs
+copper <- copper[-c(1),]
+plot.ts(copper$returns)
+#============================
+
+lag <- copper
+#==============================================
+#CREATE NEW DATASET MERGING WITH EXOGENOUS FEATURES
+#==============================================
+#1) IMPORT AUDUSD
+AUDUSD <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/AUDUSD.csv")
+
+#Rename Column
+colnames(AUDUSD) <- c("X.DateTime.", "AUDUSD")
+
+#Merge datasets
+lag_merge <- merge(transform(lag, Date = format(as.Date(Date), "%Y-%m-%d")), transform(AUDUSD, Date = format(as.Date(X.DateTime.), "%Y-%m-%d")))
+
+#Drop redundant date time column
+lag_merge <- subset(lag_merge, select = -c(X.DateTime.))
+
+#-----------------------------------------------------
+
+#2) IMPORT CLPUSD
+CLPUSD <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/CLPUSD.csv")
+
+#Rename Column
+colnames(CLPUSD) <- c("X.DateTime.", "CLPUSD")
+
+#Merge datasets
+lag_merge <- merge(transform(lag_merge, Date = format(as.Date(Date), "%Y-%m-%d")), transform(CLPUSD, Date = format(as.Date(X.DateTime.), "%Y-%m-%d")))
+
+#Drop redundant date time column
+lag_merge <- subset(lag_merge, select = -c(X.DateTime.))
+
+#------------------------------------------------
+#3) IMPORT 3 MONTH TREASURY BILL RATES
+fed_treasury3 <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/FRED-DTB3.csv")
+#View(fed_treasury3)
+
+#Rename column
+colnames(fed_treasury3) <- c("Date", "Treasury")
+
+#Merge datasets
+lag_merge <- merge(transform(lag_merge, Date = format(as.Date(Date), "%Y-%m-%d")), transform(fed_treasury3, Date = format(as.Date(Date), "%Y-%m-%d")))
+#-------------------------------------------------
+#4) IMPORT TED SPREAD
+ted.spread <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/FRED-TEDRATE.csv")
+#View(ted.spread)
+
+#Rename column
+colnames(ted.spread) <- c("Date", "Ted")
+#Merge datasets
+lag_merge <- merge(transform(lag_merge, Date = format(as.Date(Date), "%Y-%m-%d")), transform(ted.spread, Date = format(as.Date(Date), "%Y-%m-%d")))
+
+#-------------------------------------------------
+#5) IMPORT GOLDMAN SACHS COMMODITY INDEX
+GSCI <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/GSCI.csv")
+#View(GSCI)
+#Rename column
+colnames(GSCI) <- c("Date", "GSCI")
+#Merge datasets
+lag_merge <- merge(transform(lag_merge, Date = format(as.Date(Date), "%Y-%m-%d")), transform(GSCI, Date = format(as.Date(Date), "%Y-%m-%d")))
+#-----------------------------------
+#6) IMPORT VOLATILITY INDEX (Losing data here)
+CHOEM_VIX_Mine <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/CHOEM_VIX_Mine.csv")
+#View(CHOEM_VIX_Mine)
+#Select only Prev..Day.Open.Interest, Close_VIX, Date
+VIX <- subset(CHOEM_VIX_Mine, select = c(Trade.Date, Prev..Day.Open.Interest, Close_VIX) )
+#Rename column
+#colnames(VIX) <- c("Date", "Prev..Day.Open.Interest","Close_VIX")
+VIX$Date <- parse_date_time(VIX$Trade.Date, 'mdy')
+#Merge datasets
+lag_merge <- merge(transform(lag_merge, Date = format(as.Date(Date), "%Y-%m-%d")), transform(VIX, Date = format(as.Date(Date), "%Y-%m-%d")))
+#Drop redundant information
+lag_merge <- subset(lag_merge, select = -c(Trade.Date))
+
+#-----------------------------------
+#7) IMPORT BALTIC DRY INDEX (Ignore losing too much data)
+#BDI <- read.csv("~/Desktop/Dissertation/Baseline #Model/Data/LLOYDS-BDI.csv")
+#View(BDI)
+
+#------------------------------------
+#8) WTI
+WTI <- read.csv("~/Desktop/Dissertation/Baseline Model/Data/WTI.csv")
+#View(WTI)
+#Rename column
+colnames(WTI) <- c("Date", "WTI")
+#Merge datasets
+lag_merge <- merge(transform(lag_merge, Date = format(as.Date(Date), "%Y-%m-%d")), transform(WTI, Date = format(as.Date(Date), "%Y-%m-%d")))
+
+#======================================
+#Create Lags
+#Create lags
+lag_merge <- setDT(lag_merge)[,paste0('return.lag', 1:22) := shift(lag_merge$returns,1:22)]
+#Drop NAs
+lag_merge <- na.omit(lag_merge)
+
+#=====================================
+#Remove lag dataset because it's causing me unnecessary problems at this point
+rm(lag)
+
+#======================================
+#======================================
+# CREATE TIME SERIES EXPERTS
+#======================================
+#Libraries
+library(opera)
+library(mgcv)
+library(caret)
+library(RColorBrewer)
+
+#------------------------
+# LOAD DATA
+#------------------------
+attach(lag_merge)
+
+#-------------------------
+#GENERALIZED ADDITIVE MODELS
+#--------------------------
+gam.mix <- gam(returns ~ s(AUDUSD) + s(CLPUSD) +s(Treasury) + s(Ted) + s(GSCI) + s(Prev..Day.Open.Interest ) + s(Close_VIX) + s(WTI), data = lag_merge)
+
+gam.pred <- predict(gam.mix, newdata = lag_merge)
+#-------------------------
+#Gradient Boosting Machine
+#-------------------------
+gbm.mix <- train(returns ~ AUDUSD + CLPUSD + Treasury + Ted + GSCI + Prev..Day.Open.Interest + Close_VIX + WTI, data = lag_merge, method = 'gbm')
+
+gbm.pred <- predict(gbm.mix, newdata = lag_merge)
+
+#-----------------------------
+#LAG EXPERTS
+#------------------------------
+
+#1) Fitting the First Lag
+
+gam.fit1 <- gam(returns ~ s(return.lag1), data = lag_merge)
+lag_merge$daily <- c(predict(gam.fit1, online = TRUE))
+
+#autoregressive correaction - daily lags
+
+ar.forecast1 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast1[i] <- lag_merge$daily[i]
+}
+
+#---------------------------
+
+#2) Fitting the Second Lag
+gam.fit2 <- gam(returns ~ s(return.lag2), data = lag_merge)
+lag_merge$second.day <- c(predict(gam.fit2, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.2 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.2[i] <- lag_merge$second.day[i]
+}
+
+
+#---------------------------
+
+#3) Fitting the Third Lag
+gam.fit3 <- gam(returns ~ s(return.lag3), data = lag_merge)
+lag_merge$third.day <- c(predict(gam.fit3, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.3 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.3[i] <- lag_merge$third.day[i]
+}
+
+#---------------------------
+
+#4) Fitting the Fourth Lag
+gam.fit4 <- gam(returns ~ s(return.lag4), data = lag_merge)
+lag_merge$fourth.day <- c(predict(gam.fit4, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.4 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.4[i] <- lag_merge$fourth.day[i]
+}
+
+#---------------------------
+
+#5) Fitting the Fifth Lag
+gam.fit5 <- gam(returns ~ s(return.lag5), data = lag_merge)
+lag_merge$fifth.day <- c(predict(gam.fit5, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.5 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.5[i] <- lag_merge$fifth.day[i]
+}
+#---------------------------
+
+#6) Fitting the Sixth Lag
+gam.fit6 <- gam(returns ~ s(return.lag6), data = lag_merge)
+lag_merge$sixth.day <- c(predict(gam.fit6, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.6 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.6[i] <- lag_merge$sixth.day[i]
+}
+#---------------------------
+
+#7) Fitting the Seventh Lag
+gam.fit7 <- gam(returns ~ s(return.lag7), data = lag_merge)
+lag_merge$seventh.day <- c(predict(gam.fit7, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.7 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.7[i] <- lag_merge$seventh.day[i]
+}
+
+#---------------------------
+
+#8) Fitting the Eighth Lag
+gam.fit8 <- gam(returns ~ s(return.lag8), data = lag_merge)
+lag_merge$eighth.day <- c(predict(gam.fit8, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.8 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.8[i] <- lag_merge$eighth.day[i]
+}
+
+#--------------------------
+#9) Fitting the Ninth Lag
+gam.fit9 <- gam(returns ~ s(return.lag9), data = lag_merge)
+lag_merge$ninth.day <- c(predict(gam.fit9, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.9 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.9[i] <- lag_merge$ninth.day[i]
+}
+
+#--------------------------
+#10) Fitting the Tenth Lag
+gam.fit10 <- gam(returns ~ s(return.lag10), data = lag_merge)
+lag_merge$tenth.day <- c(predict(gam.fit10, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.10 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.10[i] <- lag_merge$tenth.day[i]
+}
+#-----------------------
+#11) Fitting the Eleventh Lag
+gam.fit11 <- gam(returns ~ s(return.lag11), data = lag_merge)
+lag_merge$eleventh.day <- c(predict(gam.fit11, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.11 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.11[i] <- lag_merge$eleventh.day[i]
+}
+#-----------------------
+#12) Fitting the Twelfth Lag
+gam.fit12 <- gam(returns ~ s(return.lag12), data = lag_merge)
+lag_merge$twelfth.day <- c(predict(gam.fit12, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.12 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.12[i] <- lag_merge$twelfth.day[i]
+}
+#-----------------------
+#13) Fitting the Thirteenth Lag
+gam.fit13 <- gam(returns ~ s(return.lag13), data = lag_merge)
+lag_merge$thirteenth.day <- c(predict(gam.fit13, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.13 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.13[i] <- lag_merge$thirteenth.day[i]
+}
+#-----------------------
+#14) Fitting the Fourteenth Lag
+gam.fit14 <- gam(returns ~ s(return.lag14), data = lag_merge)
+lag_merge$fourteenth.day <- c(predict(gam.fit14, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.14 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.14[i] <- lag_merge$fourteenth.day[i]
+}
+#-----------------------
+#15) Fitting the Fifteenth Lag
+gam.fit15 <- gam(returns ~ s(return.lag15), data = lag_merge)
+lag_merge$fifteenth.day <- c(predict(gam.fit15, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.15 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.15[i] <- lag_merge$fifteenth.day[i]
+}
+#-----------------------
+#16) Fitting the Sixteenth Lag
+gam.fit16 <- gam(returns ~ s(return.lag16), data = lag_merge)
+lag_merge$sixteenth.day <- c(predict(gam.fit16, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.16 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.16[i] <- lag_merge$sixteenth.day[i]
+}
+#-----------------------
+#17) Fitting the Seventeenth Lag
+gam.fit17 <- gam(returns ~ s(return.lag17), data = lag_merge)
+lag_merge$seventeenth.day <- c(predict(gam.fit17, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.17 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.17[i] <- lag_merge$seventeenth.day[i]
+}
+#-----------------------
+#18) Fitting the Eighteenth Lag
+gam.fit18 <- gam(returns ~ s(return.lag18), data = lag_merge)
+lag_merge$eighteenth.day <- c(predict(gam.fit18, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.18 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.18[i] <- lag_merge$eighteenth.day[i]
+}
+#---------------------------
+#19) Fitting the Ninteenth Lag
+gam.fit19 <- gam(returns ~ s(return.lag19), data = lag_merge)
+lag_merge$ninteenth.day <- c(predict(gam.fit19, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.19 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.19[i] <- lag_merge$ninteenth.day[i]
+}
+#---------------------------
+#20) Fitting the Twenteeth Lag
+gam.fit20 <- gam(returns ~ s(return.lag20), data = lag_merge)
+lag_merge$twenteeth.day <- c(predict(gam.fit20, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.20 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.20[i] <- lag_merge$twenteeth.day[i]
+}
+#---------------------------
+#21) Fitting the twentyone Lag
+gam.fit21 <- gam(returns ~ s(return.lag21), data = lag_merge)
+lag_merge$twentyone.day <- c(predict(gam.fit21, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.21 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.21[i] <- lag_merge$twentyone.day[i]
+}
+#---------------------------
+#19) Fitting the twentytwo Lag
+gam.fit22 <- gam(returns ~ s(return.lag22), data = lag_merge)
+lag_merge$twentytwo <- c(predict(gam.fit22, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.22 <- numeric(length(lag_merge$returns))
+for (i in seq(lag_merge$returns)){
+ar.forecast.22[i] <- lag_merge$twentytwo[i]
+}
+
+#===============================
+
+## Once the expert forecasts have been created (note that they can also be formed online) we build the matrix of expert and the time series to be predicted online
+
+Y <- lag_merge$returns
+X <- cbind(ar.forecast1, ar.forecast.2, ar.forecast.3, ar.forecast.4, ar.forecast.5, ar.forecast.6, ar.forecast.7, ar.forecast.8, ar.forecast.9, ar.forecast.10, ar.forecast.11, ar.forecast.12, ar.forecast.13, ar.forecast.14, ar.forecast.15, ar.forecast.16, ar.forecast.17, ar.forecast.18, ar.forecast.19, ar.forecast.20, ar.forecast.21, ar.forecast.22, gam.pred, gbm.pred)
+
+matplot(cbind(Y,X), type = 'l', col = 1:6, ylab = "Returns", xlab = "Time", main = "Expert forecast and observation")
+
+#---------------------------------------------------
+# Determining the Performance of Oracles
+#----------------------------------------------------
+
+oracle.convex <- oracle(Y = Y, experts = X, loss.type = 'square', model = "convex")
+plot(oracle.convex)
+
+#---------------------------------------
+# Online Gradient Descent 
+#---------------------------------------
+OGD <- mixture(Y = Y, experts = X, model = "OGD", loss.type = 'square')
+summary(OGD)
+plot(OGD, pause = TRUE, col = brewer.pal(9,name = "Set1"))
+
+#-----------------------------------
+# Exponentially Weighted Averages (EWAF)
+#------------------------------------
+
+EWA <- mixture(Y = Y, experts = X, model = "EWA", loss.type = 'square')
+summary(EWA)
+plot(EWA, pause = TRUE, col = brewer.pal(9,name = "Set1"))

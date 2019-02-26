@@ -1,0 +1,77 @@
+#LIBRARY
+library(dplyr)
+library(data.table)
+#instal.packages('quantmod')
+library(quantmod)
+library(ggplot2)
+library(scales)
+#to drop 1st autocorrelation lag only
+library(TSA)
+#for ljung box
+library(LSTS)
+#Time series library for augmented dickey-fuller
+library(tseries)
+#==============================
+#IMPORT DATASET
+al.returns <- read.csv("/Users/siddharth/Desktop/Dissertation/Data/eikon/al_shfe_prices.csv")
+View(al.returns)
+#=============================
+#PLOT CLOSING PRICE ALUMINIUM
+al.returns$Date <- as.Date(al.returns$Date)
+require(ggplot2)
+ggplot(data = al.returns, aes(Date, CLOSE)) + ylab("Aluminium Closing Price") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y"))
+
+#stat_smooth(color = "#FC4E07", fill = "#FC4E07", method = "loess")
+
+#=============================
+#Select variables of interest
+alm <- subset(al.returns, select = c(Date, CLOSE))
+#=============================
+#Variable Transform To Returns
+alm$returns <- Delt(alm$CLOSE)
+#=============================
+#Select New Variables
+alm <- subset(alm, select = c(Date, returns))
+#=============================
+#Drop NAs
+alm <- alm[-c(1),]
+plot.ts(alm$returns)
+#============================
+
+#Plot autocorrelation function
+#22 lags
+acf(alm$returns, main = 'Autocorrelation - Aluminium Percentage Return on Closing Price', lag.max = 22, drop.lag.0 = TRUE)
+# 252 lags (represents a year)
+acf(alm$returns, main = 'Autocorrelation - Aluminium Percentage Return on Closing Price', lag.max = 252, drop.lag.0 = TRUE)
+#============================
+#Test for stationarity using Augmented Dickey-Fuller
+adf.test(alm$returns, alternative = c("stationary"))
+#Test for stationarity KPSS test.
+kpss.test(alm$returns)
+#============================
+#Ljung Box Test for Lag 1
+Box.test(alm$returns, lag = 1, type = c("Ljung-Box"), fitdf = 0)
+
+#Plotting Ljung Box Test for Dataset
+Box.Ljung.Test(alm$returns, lag = 2000)
+#=============================
+#Create lags
+lag <- setDT(alm)[,paste0('return.lag', 1:22) := shift(alm$returns,1:22)]
+#Drop NAs
+lag <- na.omit(lag)
+
+#===========================
+#Plot Trend Line - Returns on Closing Price
+ggplot(data = alm, aes(Date, returns)) + ylab("Aluminium Percentage Returns") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y")) + stat_smooth(color = "#FC4E07", fill = "#FC4E07", method = "loess")
+#========================
+
+#Feature Importance
+
+library(randomForest)
+
+rf_model <- randomForest(returns~.-Date, data = lag, ntree = 1000, mtry = 8, nodesize = 5, importance = TRUE)
+
+varImpPlot(rf_model, main = "Lag Importance Aluminium")
+
+varImp(rf_model)
+

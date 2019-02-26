@@ -1,0 +1,416 @@
+#LIBRARY
+library(dplyr)
+library(data.table)
+#instal.packages('quantmod')
+library(quantmod)
+library(ggplot2)
+library(scales)
+#to drop 1st autocorrelation lag only
+library(TSA)
+#for ljung box
+library(LSTS)
+#Time series library for augmented dickey-fuller
+library(tseries)
+#Library for ARMA
+library(forecast)
+#To calculate RMSE
+library(Metrics)
+#==============================
+#IMPORT DATASET
+al.returns <- read.csv("/Users/siddharth/Desktop/Dissertation/Data/eikon/al_shfe_prices.csv")
+View(al.returns)
+#=============================
+#PLOT CLOSING PRICE ALUMINIUM
+al.returns$Date <- as.Date(al.returns$Date)
+require(ggplot2)
+ggplot(data = al.returns, aes(Date, CLOSE)) + ylab("Aluminium Closing Price") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y"))
+
+#stat_smooth(color = "#FC4E07", fill = "#FC4E07", method = "loess")
+
+#=============================
+#Select variables of interest
+alm <- subset(al.returns, select = c(Date, CLOSE))
+#=============================
+#Variable Transform To Returns
+alm$returns <- Delt(alm$CLOSE)
+#=============================
+#Select New Variables
+alm <- subset(alm, select = c(Date, returns))
+#=============================
+#Drop NAs
+alm <- alm[-c(1),]
+plot.ts(alm$returns)
+#============================
+
+#Plot autocorrelation function
+#22 lags
+acf(alm$returns, main = 'Autocorrelation - Aluminium Percentage Return on Closing Price', lag.max = 22, drop.lag.0 = TRUE)
+# 252 lags (represents a year)
+acf(alm$returns, main = 'Autocorrelation - Aluminium Percentage Return on Closing Price', lag.max = 252, drop.lag.0 = TRUE)
+#============================
+#Test for stationarity using Augmented Dickey-Fuller
+adf.test(alm$returns, alternative = c("stationary"))
+#Test for stationarity KPSS test.
+kpss.test(alm$returns)
+#============================
+#Ljung Box Test for Lag 1
+Box.test(alm$returns, lag = 1, type = c("Ljung-Box"), fitdf = 0)
+
+#Plotting Ljung Box Test for Dataset
+Box.Ljung.Test(alm$returns, lag = 2000)
+#=============================
+#Create lags
+lag <- setDT(alm)[,paste0('return.lag', 1:22) := shift(alm$returns,1:22)]
+#Drop NAs
+lag <- na.omit(lag)
+
+#===========================
+#Plot Trend Line - Returns on Closing Price
+ggplot(data = alm, aes(Date, returns)) + ylab("Aluminium Percentage Returns") + geom_line(color = "#00AFBB") + theme_minimal() + scale_x_date(breaks = date_breaks("years"), labels = date_format("%y")) + stat_smooth(color = "#FC4E07", fill = "#FC4E07", method = "loess")
+#========================
+#Auto ARIMA setup (Max lag that can be tested is 10)
+arma.best <- auto.arima(alm$returns, seasonal = FALSE)
+summary(arma.best)
+#Check residuals
+checkresiduals(arma.best)
+#QQPlot
+qqnorm(arma.best$residuals)
+qqline(arma.best$residuals)
+#=========================
+#AR(1,0) model
+#ar1_model <- auto.arima(alm$returns, seasonal = FALSE, max.Q = 0, max.q = 0, max.p = 1, max.P = 1, trace = TRUE)
+#summary(ar1_model)
+#Check residuals
+#checkresiduals(ar1_model)
+#===========================
+#Best AR Model
+ar_best <- auto.arima(alm$returns, seasonal = FALSE, max.Q = 0, max.q = 0, trace = TRUE)
+summary(ar_best)
+#Check residuals
+checkresiduals(ar_best)
+#=============================
+#AR(0,0) model
+#ar0_model <- auto.arima(alm$returns, seasonal = FALSE, max.Q = 0, max.q = 0, max.p = 0, max.P = 0, trace = TRUE)
+#summary(ar0_model)
+#Check residuals
+#checkresiduals(ar0_model)
+#==========================================
+#Calculate RMSE white box model
+rmse(alm$returns, 0)
+#Calculate RMSE mean model
+rmse(alm$returns, mean(alm$returns))
+#========================
+#Best ARIMA at higher residuals
+#arma9_model <- auto.arima(alm$returns, seasonal = FALSE, max.Q = 9, max.q = 9, max.p = 9, max.P = 9, start.p = 9, start.P = 9, start.q = 9, start.Q = 9, trace = TRUE)
+
+#============================
+
+
+#=============================
+# CREATING ONLINE EXPERTS
+#=============================
+attach(lag)
+
+#=============================
+#Load Libraries
+
+#install.packages("opera")
+#install.packages("RColorBrewer")
+#Libraries
+library(opera)
+library(mgcv)
+library(caret)
+library(RColorBrewer)
+
+#============================
+#Predicting daily closing prices
+#===========================
+
+#1) Fitting the First Lag
+
+gam.fit1 <- gam(returns ~ s(return.lag1), data = lag)
+lag$daily <- c(predict(gam.fit1, online = TRUE))
+
+#autoregressive correaction - daily lags
+
+ar.forecast1 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast1[i] <- lag$daily[i]
+}
+
+#---------------------------
+
+#2) Fitting the Second Lag
+gam.fit2 <- gam(returns ~ s(return.lag2), data = lag)
+lag$second.day <- c(predict(gam.fit2, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.2 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.2[i] <- lag$second.day[i]
+}
+
+
+#---------------------------
+
+#3) Fitting the Third Lag
+gam.fit3 <- gam(returns ~ s(return.lag3), data = lag)
+lag$third.day <- c(predict(gam.fit3, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.3 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.3[i] <- lag$third.day[i]
+}
+
+#---------------------------
+
+#4) Fitting the Fourth Lag
+gam.fit4 <- gam(returns ~ s(return.lag4), data = lag)
+lag$fourth.day <- c(predict(gam.fit4, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.4 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.4[i] <- lag$fourth.day[i]
+}
+
+#---------------------------
+
+#5) Fitting the Fifth Lag
+gam.fit5 <- gam(returns ~ s(return.lag5), data = lag)
+lag$fifth.day <- c(predict(gam.fit5, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.5 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.5[i] <- lag$fifth.day[i]
+}
+#---------------------------
+
+#6) Fitting the Sixth Lag
+gam.fit6 <- gam(returns ~ s(return.lag6), data = lag)
+lag$sixth.day <- c(predict(gam.fit6, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.6 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.6[i] <- lag$sixth.day[i]
+}
+#---------------------------
+
+#7) Fitting the Seventh Lag
+gam.fit7 <- gam(returns ~ s(return.lag7), data = lag)
+lag$seventh.day <- c(predict(gam.fit7, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.7 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.7[i] <- lag$seventh.day[i]
+}
+
+#---------------------------
+
+#8) Fitting the Eighth Lag
+gam.fit8 <- gam(returns ~ s(return.lag8), data = lag)
+lag$eighth.day <- c(predict(gam.fit8, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.8 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.8[i] <- lag$eighth.day[i]
+}
+
+#--------------------------
+#9) Fitting the Ninth Lag
+gam.fit9 <- gam(returns ~ s(return.lag9), data = lag)
+lag$ninth.day <- c(predict(gam.fit9, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.9 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.9[i] <- lag$ninth.day[i]
+}
+
+#--------------------------
+#10) Fitting the Tenth Lag
+gam.fit10 <- gam(returns ~ s(return.lag10), data = lag)
+lag$tenth.day <- c(predict(gam.fit10, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.10 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.10[i] <- lag$tenth.day[i]
+}
+#-----------------------
+#11) Fitting the Eleventh Lag
+gam.fit11 <- gam(returns ~ s(return.lag11), data = lag)
+lag$eleventh.day <- c(predict(gam.fit11, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.11 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.11[i] <- lag$eleventh.day[i]
+}
+#-----------------------
+#12) Fitting the Twelfth Lag
+gam.fit12 <- gam(returns ~ s(return.lag12), data = lag)
+lag$twelfth.day <- c(predict(gam.fit12, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.12 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.12[i] <- lag$twelfth.day[i]
+}
+#-----------------------
+#13) Fitting the Thirteenth Lag
+gam.fit13 <- gam(returns ~ s(return.lag13), data = lag)
+lag$thirteenth.day <- c(predict(gam.fit13, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.13 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.13[i] <- lag$thirteenth.day[i]
+}
+#-----------------------
+#14) Fitting the Fourteenth Lag
+gam.fit14 <- gam(returns ~ s(return.lag14), data = lag)
+lag$fourteenth.day <- c(predict(gam.fit14, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.14 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.14[i] <- lag$fourteenth.day[i]
+}
+#-----------------------
+#15) Fitting the Fifteenth Lag
+gam.fit15 <- gam(returns ~ s(return.lag15), data = lag)
+lag$fifteenth.day <- c(predict(gam.fit15, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.15 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.15[i] <- lag$fifteenth.day[i]
+}
+#-----------------------
+#16) Fitting the Sixteenth Lag
+gam.fit16 <- gam(returns ~ s(return.lag16), data = lag)
+lag$sixteenth.day <- c(predict(gam.fit16, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.16 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.16[i] <- lag$sixteenth.day[i]
+}
+#-----------------------
+#17) Fitting the Seventeenth Lag
+gam.fit17 <- gam(returns ~ s(return.lag17), data = lag)
+lag$seventeenth.day <- c(predict(gam.fit17, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.17 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.17[i] <- lag$seventeenth.day[i]
+}
+#-----------------------
+#18) Fitting the Eighteenth Lag
+gam.fit18 <- gam(returns ~ s(return.lag18), data = lag)
+lag$eighteenth.day <- c(predict(gam.fit18, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.18 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.18[i] <- lag$eighteenth.day[i]
+}
+#---------------------------
+#19) Fitting the Ninteenth Lag
+gam.fit19 <- gam(returns ~ s(return.lag19), data = lag)
+lag$ninteenth.day <- c(predict(gam.fit19, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.19 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.19[i] <- lag$ninteenth.day[i]
+}
+#---------------------------
+#20) Fitting the Twenteeth Lag
+gam.fit20 <- gam(returns ~ s(return.lag20), data = lag)
+lag$twenteeth.day <- c(predict(gam.fit20, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.20 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.20[i] <- lag$twenteeth.day[i]
+}
+#---------------------------
+#21) Fitting the twentyone Lag
+gam.fit21 <- gam(returns ~ s(return.lag21), data = lag)
+lag$twentyone.day <- c(predict(gam.fit21, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.21 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.21[i] <- lag$twentyone.day[i]
+}
+#---------------------------
+#19) Fitting the twentytwo Lag
+gam.fit22 <- gam(returns ~ s(return.lag22), data = lag)
+lag$twentytwo <- c(predict(gam.fit22, online = TRUE))
+
+#autoregressive correaction - second lags
+
+ar.forecast.22 <- numeric(length(lag$returns))
+for (i in seq(lag$returns)){
+ar.forecast.22[i] <- lag$twentytwo[i]
+}
+#===============================
+
+## Once the expert forecasts have been created (note that they can also be formed online) we build the matrix of expert and the time series to be predicted online
+
+Y <- lag$returns
+X <- cbind(ar.forecast1, ar.forecast.2, ar.forecast.3, ar.forecast.4, ar.forecast.5, ar.forecast.6, ar.forecast.7, ar.forecast.8, ar.forecast.9, ar.forecast.10, ar.forecast.11, ar.forecast.12, ar.forecast.13, ar.forecast.14, ar.forecast.15, ar.forecast.16, ar.forecast.17, ar.forecast.18, ar.forecast.19, ar.forecast.20, ar.forecast.21, ar.forecast.22)
+
+matplot(cbind(Y,X), type = 'l', col = 1:6, ylab = "Returns", xlab = "Time", main = "Expert forecast and observation")
+
+
+#---------------------------------------------------
+# Determining the Performance of Oracles
+#----------------------------------------------------
+
+oracle.convex <- oracle(Y = Y, experts = X, loss.type = 'square', model = "convex")
+plot(oracle.convex)
+
+#---------------------------------------
+# Online Gradient Descent 
+#---------------------------------------
+OGD <- mixture(Y = Y, experts = X, model = "OGD", loss.type = 'square')
+summary(OGD)
+plot(OGD, pause = TRUE, col = brewer.pal(9,name = "Set1"))
+
+#-----------------------------------
+# Exponentially Weighted Averages (EWAF)
+#------------------------------------
+
+EWA <- mixture(Y = Y, experts = X, model = "EWA", loss.type = 'square')
+summary(EWA)
+plot(EWA, pause = TRUE, col = brewer.pal(9,name = "Set1"))
