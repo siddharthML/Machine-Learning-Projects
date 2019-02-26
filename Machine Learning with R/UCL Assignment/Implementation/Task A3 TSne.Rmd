@@ -1,0 +1,233 @@
+#=======================
+#   TASK A2
+#=======================
+
+#Import Red Wine Dataset
+
+winequality.red <- read.csv("~/Desktop/UCL Modules/Selected Topics in Statistics/ICA 2/Q1/Data/winequality/winequality-red.csv", sep=";")
+
+#Rename dataset
+red.wine <- winequality.red
+
+#Add new color column
+red.wine$color <- "red"
+
+#-------------------
+#Import White Wine Dataset
+
+winequality.white <- read.csv("~/Desktop/UCL Modules/Selected Topics in Statistics/ICA 2/Q1/Data/winequality/winequality-white.csv", sep=";")
+
+#Rename Dataset
+white.wine <- winequality.white
+
+#Add new color column
+white.wine$color <- "white"
+#----------------------
+
+#Create Joint Dataset
+
+wine.set <- rbind(red.wine, white.wine)
+
+#=============================
+#   TASK A(3)
+#=============================
+
+## PERFORM EXPLORATORY DATA ANALYSIS
+
+#This report will explore 12 chemical properties of a set of 6497 variants of the Portugese "vinho verde".1599 red wines, and 4898 white wines. The set of wines was evaluated by three assessors who privded the scores between 0(disgusting) and 10(excellent) for each wine. 
+
+#Libraries
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(lubridate)
+library(gridExtra)
+library(reshape2)
+library(GGally)
+library(corrplot)
+library(corrgram)
+
+## SEE DATASET
+str(wine.set)
+
+## DATA SET DESCRIPTIVE STATISTICS (MEAN AND 5 NUMBER SUMMARY)
+summary(white.wine)
+summary(red.wine)
+summary(wine.set)
+
+#=============================================
+
+## UNIVARIATE PLOT SECTION
+
+#1) Quality
+ggplot(data = wine.set, aes(x = quality)) + geom_bar() + facet_wrap(~color, ncol = 1)
+by(wine.set$quality, wine.set$color, summary)
+
+#2) Fixed acidity
+ggplot(data = wine.set, aes(x = fixed.acidity)) + geom_bar() + facet_wrap(~color, ncol = 1)
+by(wine.set$fixed.acidity, wine.set$color, summary)
+
+#3) Volatile Acidity
+ggplot(data = wine.set, aes(x = volatile.acidity)) + geom_bar() + facet_wrap(~color, ncol = 1)
+by(wine.set$volatile.acidity, wine.set$color, summary)
+
+#4) Citric Acid
+ggplot(data = wine.set, aes(x = citric.acid)) + geom_bar() + facet_wrap(~color, ncol = 1)
+by(wine.set$citric.acid, wine.set$color, summary)
+
+#Log transformation didn't help.
+
+#5) Residual Sugar
+ggplot(data = wine.set,aes(x = residual.sugar)) + geom_histogram(binwidth = 0.2) + facet_wrap(~color, ncol = 1)
+by(wine.set$residual.sugar, wine.set$color, summary)
+
+ggplot(data = wine.set, aes(x = residual.sugar)) + geom_histogram(binwidth = 0.2) + coord_cartesian(xli = c(0, quantile(wine.set$residual.sugar, 0.99))) + facet_wrap(~color, ncol = 1)
+
+ggplot(data = subset(wine.set, color == "white"), aes(x = residual.sugar)) + geom_histogram(binwidth = 0.02) + scale_x_log10()
+
+#6) Chlorides
+
+ggplot(data = wine.set, aes(x = chlorides)) + geom_bar() + facet_wrap(~color, ncol = 1)
+by(wine.set$chlorides, wine.set$color, summary)
+
+
+
+ggplot(data = wine.set ,aes(x = chlorides)) + geom_histogram(binwidth = 0.025) + scale_x_log10() + facet_wrap(~color, ncol = 1)
+
+
+#7) Free Sulfur Dioxide
+
+ggplot(data = wine.set, aes(x = free.sulfur.dioxide)) + geom_bar() + facet_wrap(~color, ncol = 1)
+by(wine.set$free.sulfur.dioxide, wine.set$color, summary)
+
+
+#8) Total Sulfur Dioxide
+
+ggplot(data = wine.set, aes(x = total.sulfur.dioxide)) + geom_histogram(binwidth = 5) + facet_wrap(~color, ncol = 1)
+by(wine.set$total.sulfur.dioxide, wine.set$color, summary)
+
+#Log transform doesn't help.
+
+#9) Density
+
+ggplot(data = wine.set, aes(x = density)) + geom_histogram(binwidth = 0.0002) + facet_wrap(~color, ncol = 1)
+by(wine.set$density, wine.set$color, summary)
+
+ggplot(data = wine.set, aes(x = density)) + geom_histogram(binwidth = 0.0002) + coord_cartesian(xlim = c(0.987, quantile(wine.set$density, 0.99))) + facet_wrap(~color, ncol = 1)
+
+#10) pH
+
+ggplot(data = wine.set, aes(x = pH)) + geom_histogram(binwidth = 0.01) + facet_wrap(~color, ncol = 1)
+by(wine.set$pH, wine.set$color, summary)
+
+
+#11) Sulphates
+ggplot(data = wine.set,aes(x = sulphates)) + geom_histogram(binwidth = 0.2) + facet_wrap(~color, ncol = 1)
+by(wine.set$sulphates, wine.set$color, summary)
+
+#Log transform sulphates
+ggplot(data = subset(wine.set, color == "red"), aes(x = sulphates)) + geom_histogram(binwidth = 0.02) + scale_x_log10()
+
+#12) Alcohol
+
+ggplot(data = wine.set,aes(x = alcohol)) + geom_histogram(binwidth = 0.1) + facet_wrap(~color, ncol = 1)
+by(wine.set$alcohol, wine.set$color, summary)
+
+#========================================
+
+## BIVARITE PLOT
+
+#Red wine
+
+
+wsr <- cor(subset(wine.set
+                 ,color == "red"
+                 ,select = -c(color))
+          ,method = "pearson")
+
+corrplot(wsr)
+wsr
+#cor(red.wine$quality, red.wine$volatile.acidity)
+#cor(red.wine$quality, red.wine$alcohol)
+
+#White wine
+
+wsw <- cor(subset(wine.set
+                 ,color == "white"
+                 ,select = -c(color))
+          ,method = "pearson")
+corrplot(wsw)
+wsw
+
+
+#Another way to visualize - Corrgram (Intro to Regression - Kaggle) - Better way to visualize than above. Blue is positive correlation, red is negative correlation.
+corrgram(red.wine, lower.panel = panel.shade, upper.panel = panel.ellipse)
+corrgram(white.wine, lower.panel = panel.shade, upper.panel = panel.ellipse)
+
+
+#-----Exploring our highly correlated variables further------------
+
+#Create new variables that group quality into 3 categorical variables - namely Poor, Average, Great.
+wine.set$quality.group <- cut(wine.set$quality, c(1,4,6,10), labels = c("Poor", "Average", "Great"))
+
+
+#=======================================
+#     MULTIVARIATE PLOT SECTION
+#=======================================
+
+
+#=================================================
+#Cluster, Collinearity or Non Linearity
+#================================================
+#Red Wine
+#------------------------------
+ggplot(data = subset(wine.set, color == "red" & quality.group != "Average")
+      ,aes(x = alcohol, y = volatile.acidity)) +
+  geom_point(aes(colour = quality.group)) +
+  geom_smooth(aes(colour = quality.group)
+             ,method = lm) +
+  coord_cartesian(xlim = c(min(wine.set$alcohol), quantile(wine.set$alcohol, 0.99))
+                 ,ylim = c(min(wine.set$volatile.acidity), quantile(wine.set$volatile.acidity, 0.99))) +
+  labs(title="ALCOHOL CONTENT AND VOLATILE ACIDITY BY RED WINE QUALITY"
+      ,x = "Alcohol (g/ml)"
+      ,y = "Volatile Acidity (g/dm³)"
+      ,color = "Quality")
+      
+#We observe clustering here. Poor quality alcohol are clustered more towards the top left with high volatility and low alcohol content whereas great quality wines are clustered near the bottom right with high alcohol content and low volatility.
+
+#---------------------
+#   White Wine
+#--------------------
+
+ggplot(data = subset(wine.set, color == "white" & quality.group != "Average")
+      ,aes(x = alcohol, y = density)) +
+  geom_point(aes(colour = quality.group)) +
+  geom_smooth(aes(colour = quality.group)
+             ,method = lm) +
+  coord_cartesian(xlim = c(min(wine.set$alcohol), quantile(wine.set$alcohol, 0.99))
+                 ,ylim = c(min(wine.set$density), quantile(wine.set$density, 0.99))) +
+  labs(title="ALCOHOL CONTENT AND DENSITY BY WHITE WINE QUALITY"
+      ,x = "Alcohol (g/ml)"
+      ,y = "Density (g/cm³)"
+      ,color = "Quality")
+
+#We see linearity. The ratio of good to bad quality wines seems to be increasing as density decreases and alcohol content increaes.
+
+#---------------------------
+
+#T-Sne
+library(tsne)
+
+##Plotting
+tsne_red <- tsne(red.wine[1:12], perplexity = 50, max_iter = 600)
+plot(tsne_red)
+text(tsne_red, labels = red.wine$quality, col = colors[red.wine$quality])
+
+tsne_white <- tsne(white.wine[1:12], perplexity = 50, max_iter = 30)
+plot(tsne_white)
+text(tsne_white, labels = white.wine$quality, col = white.wine$quality)
+
+tsne_full <- tsne(wine.set[1:12], perplexity = 50, max_iter = 10)
+plot(tsne_full)
+text(tsne_full, labels = wine.set$quality, col = wine.set$quality)
+

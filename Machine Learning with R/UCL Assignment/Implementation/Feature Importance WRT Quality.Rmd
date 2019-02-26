@@ -1,0 +1,64 @@
+#=======================
+#   TASK A2
+#=======================
+
+#Import Red Wine Dataset
+
+winequality.red <- read.csv("~/Desktop/UCL Modules/Selected Topics in Statistics/ICA 2/Q1/Data/winequality/winequality-red.csv", sep=";")
+
+#Rename dataset
+red.wine <- winequality.red
+
+#Add new color column
+red.wine$color <- "red"
+
+#-------------------
+#Import White Wine Dataset
+
+winequality.white <- read.csv("~/Desktop/UCL Modules/Selected Topics in Statistics/ICA 2/Q1/Data/winequality/winequality-white.csv", sep=";")
+
+#Rename Dataset
+white.wine <- winequality.white
+
+#Add new color column
+white.wine$color <- "white"
+#----------------------
+
+#Create Joint Dataset
+
+wine.set <- rbind(red.wine, white.wine)
+
+library(caret)
+
+#PREPROCESSING
+
+#Create dummy variable for colors
+color.dummy <- dummyVars("~color", data = wine.set)
+dummy.frame <- data.frame(predict(color.dummy, newdata = wine.set))
+
+#Create new dataset with dummy variables
+wine.set <- cbind(wine.set, dummy.frame)
+#Drop colors
+wine.set <- subset(wine.set, select = -c(color))
+#Drop colorred because of collinearity
+wine.set <- subset(wine.set, select = -c(colorred))
+
+#------------------------------
+
+#Most important variables with regards to quality
+
+#prepare training scheme
+control <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+#train model
+model <- train(quality~., data=wine.set, method="glmStepAIC", trControl=control)
+
+#estimate variable importance
+importance <- varImp(model, scale = FALSE)
+
+#sumarize importance
+print(importance)
+
+# plot importance
+plot(importance)
+
+#==================

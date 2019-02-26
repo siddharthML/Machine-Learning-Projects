@@ -1,0 +1,161 @@
+#BENCHMARK EXPERIMENTS
+
+library(mlr)
+#In a benchmark experiment different learning methods are applied to one or several data sets with the aim to compare and rank the algorithms with respect to one or more performance measures.
+
+#In mlr a benchmark experiment can be conducted by calling function benchmark on a list of Learners and a list of Tasks. benchmark basically executes resample for each combination of Learner and Task. You can specify an individual resampling strategy for each Task and select one or multiple performance measures to be calculated.
+
+#===========================
+
+#CONDUCTING BENCHMARK EXPERIMENTS
+
+#We start witha  small example. Two learners, linear discriminant analysis(lda) and a classification tree(rpart), are applied to one classification problem(sonar.task). As resampling strategy we choose "Holdout". The performance is thus calculated on a single randomly sampled data set.
+
+#In the example below we create a resample description (ResampleDesc), which is automatically instantiated by benchmark. The instantiation is done only once per Task, i.e., the same training and test sets are used for all learners. It is also possible to directly pass a ResampleInstance.
+
+#If you would like to use a fixed test data set instead of a randomly selected one, you can create a suitable ResampleInstance through function makeFixedHoldoutInstance.
+
+
+##TWO LEARNERS COMPARED
+
+lrns = list(makeLearner("classif.lda"), makeLearner("classif.rpart"))
+
+## Choose resampling strategy
+rdesc = makeResampleDesc("Holdout")
+
+## Conduct the benchmark experiment
+bmr = benchmark(lrns, sonar.task, rdesc)
+bmr
+
+#===
+
+#For convenience, if you don't want to pass any additional arguments to makeLearner, you don't need to generate the Learners explicitly, but it's sufficient to provide the learner name. In the above example we could also have written:
+
+## Vector of strings (NICE!!)
+
+lrns = c("classif.lda", "classif.rpart")
+
+## A mixed list of Learner objects and strings works, too
+
+#lrns = list(makeLearner("classif.lda", predict.type = "prob"), "classif.rpart")
+
+#bmr = benchmark(lrns, sonar.task, rdesc)
+bmr
+
+#In the printed summary table every row corresponds to one pair of Task and Learner. The entries show the mean misclassification error (mmce), the default performance measure for classification, on the test data set.
+
+#The result bmr is an object of class BenchmarkResult. Basically, it contains a list of lists of ResampleResult objects, first ordered by Task and then by Learner.
+
+#===========================
+
+#ACCESSING BENCHMARK RESULTS
+
+#mlr provides several accessor functions, named getBMR<WhatToExtract>, that permit to retrieve information for further analyses. This includes for example the performances or predictions of the learning algorithms under consideration.
+
+#Learner Performances
+
+#Let's have a look at the benchmark results above. getBMRPerformances returns individual performances in resampling runs, while getBMRAggrPerformances gives the aggregate values
+
+getBMRPerformances(bmr)
+getBMRAggrPerformances(bmr)
+
+#Since we used holdout as resampling strategy, individual and aggregated performance values coincide.
+
+#By default, nearly all "getter" functions return a nested list, with the first level indicating the task and the second level indicating the learner. If only a single learner or, as in our case a single task is considered, setting drop = TRUE simplifies the result to a flat list.
+
+
+getBMRPerformances(bmr, drop = TRUE)
+
+#*******
+#Often it is more convenient to work with data.frames. You can easily convert the result structure by setting as.df = TRUE.
+#********
+
+getBMRPerformances(bmr, as.df = TRUE)
+
+#======================================
+
+#PREDICTIONS
+
+#Per default, the BenchmarkResults contains the learner predictions. If you do not want to keep them, eg, to conserve memory, set keep.pred = FALSE when calling benchmark.
+
+#You can access the predictions using getBMRPredictions. Per default, you get a nested list of ResamplePrediction objects. As above, you can use the drop or as.df options to simply the results.
+
+getBMRPredictions(bmr)
+head(getBMRPredictions(bmr, as.df = TRUE))
+
+#It is also easily possible to access results for certain learners or tasks via their IDs. For this purpose many "getter" functions have a learner.ids and a task.ids argument.
+
+head(getBMRPredictions(bmr, learner.ids = "classif.rpart", as.df = TRUE))
+
+#===============
+
+# IDs
+
+#The IDs of all Learners, Tasks and Measures in a benchmark experiment can be retrieved as follows:
+
+getBMRTaskIds(bmr)
+getBMRLearnerIds(bmr)
+getBMRMeasureIds(bmr)
+
+#=================
+
+#FITTED MODELS
+
+#Per default the BenchmarkResults also contain the fitted models of all the learners on all tasks. If you do not want to keep them set models = FALSE when calling benchmark. The fitted models can be retrieved by function getBMRModels. It returns a (possibly nested) list of WrappedModel objects.
+
+getBMRModels(bmr)
+getBMRModels(bmr, drop = TRUE)
+
+#=================
+
+#LEARNERS AND MEASURES
+
+#Moreover, you can extract the employed Learners and Measures
+
+getBMRLearners(bmr)
+getBMRMeasures(bmr)
+
+#================
+
+#MERGING BENCHMARK RESULTS:
+
+#Sometimes after completing a benchmark experiment it turns out that you want to extend it by another Learner or another Task. In this case you can perform an additional benchmark experiment and then use function mergeBenchmarkResults to combine the results to a single BenchmarkResult object that can be accessed and analyzed as usual.
+
+#For example in the benchmark experiment above we applied lda and rpart to the sonar.task. We now perform a second experiment using a random forest and quadratic discriminant analysis (qda) and merge the results.
+
+##Benchmark experiment for additional learners
+
+lrns2 = list(makeLearner("classif.randomForest"), makeLearner("classif.qda"))
+bmr2 = benchmark(lrns2, sonar.task, rdesc, show.info = FALSE)
+bmr2
+
+mergeBenchmarkResults(list(bmr, bmr2))
+
+#Note that in the above examples in each case a resample description was passed to the benchmark function. For this reason lda and rpart were most likely evaluated on a different training/test set pair than random forest and qda.
+
+#*****
+#Differing training/test set pairs across learners pose an additional source of variation in the results, which can make it harder to detect actual performance differences between learners. Therefore, if you suspect that you will have to extend your benchmark experiment by another Learner later on it's probably easiest to work with ResampleInstances from the start. These can be stored and used for any additional experiments.
+#*****
+
+#Alternatively, if you used a resample description in the first benchmark experiment you could also extract the ResampleInstances from the BenchmarkResult bmr and pass these to all further benchmark calls.
+
+rin = getBMRPredictions(bmr)[[1]][[1]]$instance
+rin
+bmr3 = benchmark(lrns2, sonar.task, rin, show.info = FALSE)
+bmr3
+mergeBenchmarkResults(list(bmr, bmr3))
+
+#==========================
+
+#(NOT WORKING)
+
+#COMPARING LEARNERS USING HYPOTHESIS TEST
+
+#Many researchers feel the need to display an algorithm's superiority by employing some sort of hypothesis testing. As non-parametric tests seem better suited for such benchmark results the tests provided in mlr are the Overall Friedman test and the Friedman-Nemenyi post hoc test.
+
+#While the ad hoc Friedman test based on friedman.test from the stats package is testing the hypothesis whether there is a significant difference between the employed learners, the post hoc Friedman-Nemenyi test tests for significant differences between all pairs of learners. Non parametric tests often do have less power then their parametric counterparts but less assumptions about underlying distributions have to be made. This often means many data sets are needed in order to be able to show significant differences at reasonable significance levels.
+
+#In our example, we want to compare the three learners on the selected data sets. First we might we want to test the hypothesis whether there is a difference between the learners.
+
+friedmanTestBMR(bmr)
+friedmanPostHocTestBMR(bmr, p.value = 0.1)

@@ -1,0 +1,398 @@
+#=======================
+#   TASK A2
+#=======================
+
+#Import Red Wine Dataset
+
+winequality.red <- read.csv("//ad.ucl.ac.uk/home1/ucaksc1/DesktopSettings/Desktop/Selected Topics in Statistics/ICA2/winequality/winequality/winequality-red.csv", sep=";")
+
+#Rename dataset
+red.wine <- winequality.red
+
+#Add new color column
+red.wine$color <- "red"
+
+#-------------------
+#Import White Wine Dataset
+
+winequality.white <- read.csv("//ad.ucl.ac.uk/home1/ucaksc1/DesktopSettings/Desktop/Selected Topics in Statistics/ICA2/winequality/winequality/winequality-white.csv", sep=";")
+
+#Rename Dataset
+white.wine <- winequality.white
+
+#Add new color column
+white.wine$color <- "white"
+#----------------------
+
+#Create Joint Dataset
+
+wine.set <- rbind(red.wine, white.wine)
+#==================================
+#         TASK A(4)
+#==================================
+
+#package installs
+#install.packages("deepnet")
+#install.packages("randomForest")
+#install.packages("caret")
+#install.packages("caTools")
+
+#Library
+library(caret)
+library(mlr)
+library(randomForest)
+library(caTools)
+library(Metrics)
+
+#PREPROCESSING
+
+#Create dummy variable for colors
+color.dummy <- dummyVars("~color", data = wine.set)
+dummy.frame <- data.frame(predict(color.dummy, newdata = wine.set))
+
+#Create new dataset with dummy variables
+wine.set <- cbind(wine.set, dummy.frame)
+#Drop colors
+wine.set <- subset(wine.set, select = -c(color))
+#Drop colorred because of collinearity
+wine.set <- subset(wine.set, select = -c(colorred))
+
+#CREATE BALANCED TRAIN-TEST SPLIT BASED ON QUALITY
+sample = sample.split(wine.set$quality, SplitRatio = 0.8)
+wineset.train <- subset(wine.set, sample == TRUE)
+wineset.test <- subset(wine.set, sample == FALSE)
+
+#Check if balanced dataset
+hist(wineset.train$quality)
+table(wineset.train$quality)
+hist(wineset.test$quality)
+table(wineset.test$quality)
+#---------------------------------
+
+#CLASSIFICATION TASKs
+wine.class = makeClassifTask(id = "quality",data = wineset.train, target = "quality")
+
+#-----------------------------------------
+#MAKE LEARNERS
+#----------------------------------------
+#Constructing some untuned learners
+learners <- makeLearners(c("classif.svm", "classif.nnTrain","classif.randomForest"), ids = c("SVM.untuned", "NeuralNetwork.untuned", "RF.untuned"))
+
+#SVM
+lrn.SVM.untuned <- makeLearner("classif.svm")
+#Get parameter set
+getParamSet("classif.svm")
+
+#Tuning grid SVM
+tunegridparamSVM <- makeParamSet(
+makeDiscreteParam("cost", values = 10^(-2:3)),
+makeDiscreteParam("gamma", values = 2^(-5:5))
+)
+lrn.SVM.tuned <- makeTuneWrapper(lrn.SVM.untuned, cv3, mmce, tunegridparamSVM, makeTuneControlGrid())
+lrn.SVM.tuned$id <- "SVM.tuned"
+
+#-----------------------------------
+#Neural Network
+lrn.NN.untuned <- makeLearner("classif.nnTrain", hidden = c(3))
+#Get parameter set
+getParamSet("classif.nnTrain")
+
+#Tuning grid NN
+tunegridparamNN <- makeParamSet(
+makeIntegerParam("hidden", lower = 3, upper = 10),
+makeDiscreteParam("learningrate", values = c(0.5, 1.0, 1.5, 2.0)),
+makeDiscreteParam("momentum", values = c(0.5, 1.0, 1.5, 2.0))
+)
+lrn.NN.tuned <- makeTuneWrapper(lrn.NN.untuned, cv3, mmce, tunegridparamNN, makeTuneControlGrid())
+#--------------------------------------------------
+#Ensemble Random Forest
+lrn.ERF.untuned <- makeLearner("classif.randomForest")
+#Get parameter set
+getParamSet("classif.randomForest")
+
+#Tuning grid Forest
+tunegridparamRF <- makeParamSet(
+makeIntegerParam("ntree", lower = 10, upper = 100),
+makeIntegerParam("mtry", lower = 1, upper = 12),
+makeIntegerParam("nodesize", lower = 1, upper = 30)
+)
+
+lrn.ERF.tuned <- makeTuneWrapper(lrn.ERF.untuned, cv3, mmce, tunegridparamRF, makeTuneControlGrid())
+lrn.ERF.tuned$id <- "EnsembleForest.tuned"
+
+#-------------------------------------------------
+
+#Adding tuned classifiers to list of learners
+learners <- c(learners, list(lrn.SVM.tuned, lrn.NN.tuned, lrn.ERF.tuned))
+
+#-------------------------------------------------
+
+#Specify measures to report
+measures <-list(mmce)
+#(mmce = mean misclassification error)
+
+#-----------------------------------------------
+
+#Run the Benchmarking Experiment
+bmresults <- benchmark(learners, wine.class, cv3, measures)
+
+#-----------------------------------------------
+
+#ACCESSING BENCHMARK PERFORMANCE
+
+#Get BMR Best Tune Results
+getBMRTuneResults(bmresults)
+
+#Performance of each iteration
+getBMRPerformances(bmresults)
+
+#Aggregate performance
+getBMRAggrPerformances(bmresults)
+
+#Return as data frame
+getBMRPerformances(bmresults, as.df = TRUE)
+
+#-------------------------------------------------
+
+#PREDICTIONS
+getBMRPredictions(bmresults)
+#put as.df = TRUE to get a dataframe of above results
+getBMRPredictions(bmresults, as.df = TRUE)
+
+#----------------------------------------------------
+
+#VISUALIZE BENCHMARK EXPERIMENTS
+
+#Box plot of mmce
+plotBMRBoxplots(bmresults, measure = mmce, pretty.names = FALSE)
+
+plotBMRBoxplots(bmresults, measure = mmce, style = "violin", pretty.names = FALSE) + aes(color = learner.id) + theme(strip.text.x = element_text(size = 8))
+
+#Visualizing aggregate performances
+plotBMRSummary(bmresults, pretty.names = FALSE)
+
+#Stacked bar charts
+#plotBMRRanksAsBarChart(bmresults, pretty.names = FALSE)
+
+#---------------------------------------------------------------
+#RUN PREDICTION ON HELD-OUT TEST SET
+
+
+#SVM Classification Tuned
+lrnsvm.test = makeLearner("classif.svm", predict.type = "response", cost = 10, gamma = 1)
+modsvm = train(lrnsvm.test, wine.class)
+predsvm = predict(modsvm, task = wine.class)
+svmtest.pred = predict(modsvm, newdata = wineset.test)
+svmtest.pred
+performance(svmtest.pred)
+#Confidence Interval
+1.96*sqrt(performance(svmtest.pred) * (1- performance(svmtest.pred))/1300)
+
+#Neural Network Classification
+lrnNN.test = makeLearner("classif.nnTrain", hidden = 5, learningrate = 1, momentum = 0.5)
+modNN = train(lrnNN.test, wine.class)
+predNN = predict(modNN, task = wine.class)
+NNtest.pred = predict(modNN, newdata = wineset.test)
+NNtest.pred
+performance(NNtest.pred)
+#Confidence Interval
+1.96*sqrt(performance(NNtest.pred) * (1- performance(NNtest.pred))/1300)
+
+
+#Random Forest Classification
+lrnrf.test = makeLearner("classif.randomForest", ntree = 80, mtry = 2, nodesize = 1)
+modrf = train(lrnrf.test, wine.class)
+predrf = predict(modrf, task = wine.class, interval = "confidence")
+testrf.pred = predict(modrf, newdata = wineset.test)
+testrf.pred
+performance(testrf.pred)
+#Confidence Interval
+1.96*sqrt(performance(testrf.pred) * (1- performance(testrf.pred))/1300)
+
+#Naive Classifier - Guesses most frequent class 6 all the time
+(1-567/1300)
+#Confidence Interval
+1.96*sqrt((0.5638462) * (1- 0.5638462)/1300)
+
+
+
+#===============================================================
+set.seed(123)
+
+#===============================================================
+#                       REGRESSION TASK
+#===============================================================
+
+#--------------------------------------------
+#             MAKE LEARNERS
+#--------------------------------------------
+wine.regr = makeRegrTask(id = "quality", data = wineset.train, target = "quality")
+
+#Define Cross Validation Strategy
+
+cv <- makeResampleDesc("CV", iters = 3)
+
+#Define performance measure
+measures <-list(mse)
+
+#---------------------------------------------
+# Create tuned regrSVM
+regrSVM <- makeLearner("regr.svm")
+
+#Get parameter set
+getParamSet("regr.svm")
+
+#Tuning grid regrSVM
+tunegridregrSVM <- makeParamSet(
+makeDiscreteParam("cost", values = 10^(-2:3)),
+makeDiscreteParam("gamma", values = 2^(-5:5))
+)
+learn.regrSVM.tuned <- makeTuneWrapper(regrSVM, cv3, tunegridregrSVM, makeTuneControlGrid(), measures = measures)
+lrn.regrSVM.tuned <- "regrSVM.tuned"
+
+bmr.regr.untunedSVM <- benchmark(regrSVM, wine.regr, cv3, measures)
+bmr.regr.tunedSVM <- benchmark(learn.regrSVM.tuned, wine.regr, cv3, measures)
+#----------------------------------------------
+
+# Create tuned regr.NeuralNetwork
+regrNN <- makeLearner("regr.nnet")
+
+#Get parameter set
+getParamSet("regr.nnet")
+
+#Tune grid regrNN
+tunegridregrNN <- makeParamSet(
+makeIntegerParam("size", lower = 3, upper = 10)
+)
+
+learn.regrNN.tuned <- makeTuneWrapper(regrNN, cv3, tunegridregrNN, measures = measures, makeTuneControlGrid())
+
+bmr.regr.untunedNN <- benchmark(regrNN, wine.regr, cv3, measures)
+bmr.regr.tunedNN <- benchmark(learn.regrNN.tuned, wine.regr, cv3, measures)
+
+#-------------------------------------------------------
+
+#Create tuned regr.RF
+regrRF <- makeLearner("regr.randomForest")
+
+#Get parameter set
+getParamSet("regr.randomForest")
+
+#Tune grid regrRF
+
+tunegridregrRF <- makeParamSet(
+makeIntegerParam("ntree", lower = 10, upper = 100),
+makeIntegerParam("mtry", lower = 1, upper = 12),
+makeIntegerParam("nodesize", lower = 1, upper = 30)
+)
+
+learn.regrRF.tuned <- makeTuneWrapper(regrRF, cv3, tunegridregrRF, measures = measures, makeTuneControlGrid())
+
+bmr.regr.untunedRF <- benchmark(regrRF, wine.regr, cv3, measures)
+bmr.regr.tunedRF <- benchmark(learn.regrRF.tuned, wine.regr, cv3, measures)
+
+#------------------------------------------------------------
+
+#Merging Benchmark Results
+
+#------------------------------------------------------------
+
+#Merging Benchmark Results
+
+mergeBMR <- mergeBenchmarkResults(list(bmr.regr.untunedSVM, bmr.regr.tunedSVM, bmr.regr.untunedNN, bmr.regr.tunedNN, bmr.regr.untunedRF, bmr.regr.tunedRF))
+
+#=============================================================
+#ACCESSING BENCHMARK PERFORMANCE
+
+#Get BMR Tune Results
+getBMRTuneResults(mergeBMR)
+
+#Performance of each iteration
+getBMRPerformances(mergeBMR)
+
+#Aggregate performance
+getBMRAggrPerformances(mergeBMR)
+
+#Return as data frame
+getBMRPerformances(mergeBMR, as.df = TRUE)
+
+#-------------------------------------------------
+
+#PREDICTIONS
+getBMRPredictions(mergeBMR)
+#put as.df = TRUE to get a dataframe of above results
+getBMRPredictions(mergeBMR, as.df = TRUE)
+
+#----------------------------------------------------
+
+#VISUALIZE BENCHMARK EXPERIMENTS
+
+#Box plot of mmce
+plotBMRBoxplots(mergeBMR, measure = mse, pretty.names = FALSE)
+
+plotBMRBoxplots(mergeBMR, measure = mse, style = "violin", pretty.names = FALSE) + aes(color = learner.id) + theme(strip.text.x = element_text(size = 8))
+
+#Visualizing aggregate performances
+plotBMRSummary(mergeBMR, pretty.names = FALSE)
+
+#Stacked bar charts
+#plotBMRRanksAsBarChart(mergeBMR, pretty.names = FALSE)
+
+#-------------------------------------------------------------
+
+#RUN PREDICTION ON HELD-OUT TEST SET
+
+#SVM Regression
+lrnRsvm.test = makeLearner("regr.svm", predict.type = "response", cost = 1, gamma = 0.125)
+modRsvm = train(lrnRsvm.test, wine.regr)
+predsvm = predict(modRsvm, task = wine.regr)
+Rsvmtest.pred = predict(modRsvm, newdata = wineset.test)
+Rsvmtest.pred
+performance(Rsvmtest.pred)
+#Confidence Interval
+1.96*sqrt(performance(Rsvmtest.pred) * (1- performance(Rsvmtest.pred))/1300)
+
+
+#Neural Network Classification
+lrnRnn.test = makeLearner("regr.nnet", size = 6)
+modRnn = train(lrnRnn.test, wine.regr)
+predRnn = predict(modRnn, task = wine.regr)
+Rnntest.pred = predict(modRnn, newdata = wineset.test)
+Rnntest.pred
+performance(Rnntest.pred)
+#Confidence Interval
+1.96*sqrt(performance(Rnntest.pred) * (1- performance(Rnntest.pred))/1300)
+
+#Random Forest Classification
+lrnRrf.test = makeLearner("regr.randomForest", ntree = 100, mtry = 3, nodesize = 1)
+modRrf = train(lrnRrf.test, wine.regr)
+predRrf = predict(modRrf, task = wine.regr)
+testRrf.pred = predict(modRrf, newdata = wineset.test)
+testRrf.pred
+performance(testRrf.pred)
+#Confidence Interval
+1.96*sqrt(performance(testRrf.pred) * performance(testRrf.pred)/1300)
+
+
+#Naive Classifier - Guess Mean 5.819 all the time
+msenaive = mse(5.819, wineset.test$quality)
+print(msenaive)
+#Confidence Interval
+1.96*sqrt(msenaive * (1- msenaive)/1300)
+
+#============================================
+#     FEATURE IMPORTANCE
+#===========================================
+
+
+
+#==================================================
+#                 TASK A5 Hypothesis Testing
+#==================================================
+
+#Fitting a glm model on our dataset and checking the confidence level to see if quality is a random function of the variables in the dataset or if there is significant explantory power in the variables. 
+
+modelglm = glm(quality ~ fixed.acidity + volatile.acidity + citric.acid + residual.sugar + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + density + pH + sulphates + alcohol + colorwhite, data = wine.set) 
+
+#summarize the model to check significance level
+summary(modelglm)

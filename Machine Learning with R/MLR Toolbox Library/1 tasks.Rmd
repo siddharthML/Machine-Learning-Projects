@@ -1,0 +1,104 @@
+#MLR TOOLBOX BASICS
+#Tasks
+
+#Learning Tasks
+
+#Learning tasks encapsulate the data set and further relevant information about a machine learning problem, for example the name of the target variable for supervised problems.
+#====================
+#Task types and creation
+#The tasks are organized in a hierarchy, with the generic Task at the top. 
+
+#RegrTask for regression problems,
+#ClassifTask for binary and multi-class classification problems (cost-sensitive classification with class-dependent costs can be handled as well),
+#SurvTask for survival analysis,
+#ClusterTask for cluster analysis,
+#MultilabelTask for multilabel classification problems,
+#CostSensTask for general cost-sensitive classification (with example-specific costs).
+#====================
+
+#To create a task, just call make<TaskType>, eg makeClassifTask. 
+
+#All tasks require an identified(argument id) and a data.frame (argument data). If no ID is provided it is automatically generated using variable name of the data. The ID will be later used to name results, for example of benchmark experiments and to annotate plots. 
+
+#===================
+
+#REGRESSION
+#For supervised learning like regression (as well as classification and survival analysis) we, in addition to data, have to specify the name of the target variable.
+
+library(mlr)
+data(BostonHousing, package = "mlbench")
+regr.task <- makeRegrTask(id = "bh", data = BostonHousing, target = "medv")
+#medv = median value of owner-occupied homes in USD 1000's
+regr.task
+
+#===================
+
+#Creating tasks for classification and survival anlysis follows the same schem, the data type of the target variables included in data is simply different. For each of these learning problems some speicifcs are described below.
+
+#CLASSIFICATION:
+
+#For classification the target column has to be a factor (categories red, blue, green or 1,2,3,4 etc).
+
+#In the following example we define a classification task for BreastCancer data set and excluse the variable Id from all further model fitting and evaluation
+
+data(BreastCancer, package = "mlbench")
+df = BreastCancer
+df$Id = NULL
+
+classif.task = makeClassifTask(id = "BreastCancer", data = df, target = "Class")
+classif.task
+
+# In binary classification the two classes are usually referred to as positive and negative class with positive class being the category of greater interest.This is relevant for many performance measures like the true positive rate or ROC curves. Moreover, mlr, where possible, permits to set options (like the decision threshold or class weights) and returns and plots results (like class posterior probabilities) for the positive class only.
+
+#makeClassifTask by default selects first factor level of the target variable as the positive class, in the above example benign. Class malignant can be manually selected as follows:
+
+classif.task = makeClassifTask(id = "BreastCancer", data = df, target = "Class", positive = "malignant")
+
+#=======================
+
+#SURVIVAL ANALYSIS:
+
+#Survival tasks use two target columns. For left and right censored problems these consist of the survival time and a binary event indicator. For interval censored data the two target columns must be speicifed in the "interval2" format.
+
+data(lung, package = "survival")
+lung$status = (lung$status == 2) #convert to logical
+surv.task = makeSurvTask(data = lung, target = c("time", "status"))
+surv.task
+
+#=====================
+#Multilabel Classification
+
+#In multilabel classification each object can belong to more than one category at the same time. The data are expected to contain as many target columns as there are class labels. The target columns should be logical vectors that indicate which class labels are present. The names of the target columns are taken as class labels and need to be passed to the target argument of makeMultilabelTask.
+
+yeast <- getTaskData(yeast.task)
+
+labels = colnames(yeast)[1:14]
+yeast.task = makeMultilabelTask(id = "multi", data = yeast, target = labels)
+yeast.task
+#====================================
+
+#CLUSTER ANALYSIS
+
+#As cluster analysis is unsupervised, the only mandatory argument is to contruct a cluster analysis task is the data. 
+
+data(mtcars, package = "datasets")
+cluster.task = makeClusterTask(data = mtcars)
+cluster.task
+
+#=====================
+
+#COST-SENSITIVE CLASSIFICATION 
+
+#The standard objective in classification is to obtain a high prediction accuracy, i.e., to minimize the number of errors. All types of misclassification errors are thereby deemed equally severe. However, in many applications different kinds of errors cause different costs.
+
+#In case of class-dependent costs, that solely depend on the actual and predicted class labels, it is sufficient to create an ordinary ClassifTask.
+
+#In order to handle example-specific costs it is necessary to generate a CostSensTask. In this scenario, each example (x,y) is associated with an individual cost vector of length K with K denoting the number of classes. The k-th component indicates the cost of assigning x to class k. Naturally, it is assumed that the cost of the intended class label y is minimal.
+
+#As the cost vector contains all reelvant information about the intended class y, only feature values x and cost matrix, which contains the cost vectors for all examples in the data set, are required to create the CostSenseTask.
+df = iris
+cost = matrix(runif(150 * 3, 0, 2000), 150) * (1 - diag(3))[df$Species,]
+df$Species = NULL
+
+costsens.task = makeCostSensTask(data = df, cost = cost)
+costsens.task

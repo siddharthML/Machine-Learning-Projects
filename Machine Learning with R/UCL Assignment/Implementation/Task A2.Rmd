@@ -1,0 +1,32 @@
+#=======================
+#   TASK A2
+#=======================
+
+#Import Red Wine Dataset
+
+winequality.red <- read.csv("~/Desktop/UCL Modules/Selected Topics in Statistics/ICA 2/Q1/Data/winequality/winequality-red.csv", sep=";")
+
+#Rename dataset
+red.wine <- winequality.red
+
+#Add new color column
+red.wine$color <- "red"
+
+#-------------------
+#Import White Wine Dataset
+
+winequality.white <- read.csv("~/Desktop/UCL Modules/Selected Topics in Statistics/ICA 2/Q1/Data/winequality/winequality-white.csv", sep=";")
+
+#Rename Dataset
+white.wine <- winequality.white
+
+#Add new color column
+white.wine$color <- "white"
+#----------------------
+
+#Create Joint Dataset
+
+wine.set <- rbind(red.wine, white.wine)
+
+#=============================
+

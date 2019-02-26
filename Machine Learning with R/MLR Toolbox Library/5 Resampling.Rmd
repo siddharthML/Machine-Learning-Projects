@@ -1,0 +1,121 @@
+#RESAMPLING
+library(mlr)
+#Resampling strategies are usually used to assess the performance of a learning algorithm: The entire data set is (repeatedly) split into training sets D∗b and test sets D∖D∗b, b=1,…,B. The learner is trained on each training set, predictions are made on the corresponding test set (sometimes on the training set as well) and the performance measure S(D∗b,D∖D∗b) is calculated. Then the B individual performance values are aggregated, most often by calculating the mean. There exist various different resampling strategies, for example cross-validation and bootstrap, to mention just two popular approaches.
+
+#For example if you want to use 3-fold cross-validation type:
+
+##3 fold cross validation
+
+rdesc = makeResampleDesc("CV", iters = 3)
+rdesc
+
+#For holdout estimation use:
+
+##Holdout estimation
+rdesc = makeResampleDesc("Holdout")
+rdesc
+
+#In order to save you some typing mlr contains some pre-defined resample descriptions for very common strategies like holdout (hout) as well as cross-validation with different numbers of folds (e.g., cv5 or cv10).
+
+hout
+cv3
+#=================
+
+#PERFORMING THE RESAMPLING
+
+#Function resample evaluates a Learner on a given machine learning Task using the selected resampling strategy.
+#As a first example, the performance of linear regression on the BostonHousing data set is calculated using 3-fold cross-validation.
+
+#Generally, for K-fold cross-validation the data set D is partitioned into K subsets of (approximately) equal size. In the b-th of the K iterations, the b-th subset is used for testing, while the union of the remaining parts forms the training set.
+
+#As usual, you can either pass a Learner object to resample or, as done here, provide the class name "regr.lm" of the learner. Since no performance measure is specified the default for regression learners (mean squared error, mse) is calculated.
+
+## Specify the resampling strategy
+
+rdesc = makeResampleDesc("CV", iters = 3)
+
+## Calculate the performance
+r = resample("regr.lm", bh.task, rdesc)
+r
+
+#The result r is an object of class ResampleResult. It contains performance results for the learner and some additional information like the runtime, predicted values, and optionally the models fitted in single resampling iterations.
+
+#Peak into r
+names(r)
+r$aggr
+r$measures.test
+
+#r$measures.test gives the performance on each of the 3 test data sets. r$aggr shows the aggregated performance value. Its name "mse.test.mean" indicates the performance measure, mse, and the method, test.mean, used to aggregate the 3 individual performances. test.mean is the default aggregation scheme for most performance measures and, as the name implies, takes the mean over the performances on the test data sets.
+
+#Resampling in mlr works the same way for all types of learning problems and learners. Below is a classification example where a classification tree (rpart) is evaluated on the Sonar data set by subsampling with 5 iterations.
+
+#In each subsampling iteration the data set D is randomly partitioned into a training and a test set according to a given percentage, e.g., 2/3 training and 1/3 test set. If there is just one iteration, the strategy is commonly called holdout or test sample estimation.
+
+#You can calculate several measures at once by passing a list of Measures to resample. Below, the error rate (mmce), false positive and false negative rates (fpr, fnr), and the time it takes to train the learner (timetrain) are estimated by subsampling with 5 iterations.
+
+
+## Subsampling with 5 iterations and default split ratio 2/3
+rdesc = makeResampleDesc("Subsample", iters = 5)
+
+## Subsampling with 5 iterations and 4/5 training data
+rdesc = makeResampleDesc("Subsample", iters = 5, split = 4/5)
+
+## Classification tree with information splitting criterion
+lrn = makeLearner("classif.rpart", parms = list(split = "information"))
+
+#Calculate the performance measures
+r = resample(lrn, sonar.task, rdesc, measures = list(mmce, fpr, fnr, timetrain))
+r
+
+#If you want to add further measures afterwards, use addRRMeasure
+#Add balanced error rate (ber) and time used to predict
+
+addRRMeasure(r, list(ber, timepredict))
+
+#===================================
+
+# ACCESSING RESAMPLE RESULTS
+
+# Apart from the learner performance you can extract further information from the resample results, for example predicted values or the models fitted in individual resample iterations.
+
+# Predictions
+#Per default, the ResampleResult contains the predictions made during the resampling. If you do not want to keep them, e.g., in order to conserve memory, set keep.pred = FALSE when calling resample.
+
+#The predictions are stored in slot $pred of the resampling result, which can also be accessed by function getRRPredictions.
+
+r$pred
+
+pred = getRRPredictions(r)
+pred
+
+#pred is an object of class ResamplePrediction. Just as a Prediction object (see the tutorial page on making predictions) it has an element $data which is a data.frame that contains the predictions and in the case of a supervised learning problem the true values of the target variable(s). You can use as.data.frame to directly access the $data slot. Moreover, all getter functions for Prediction objects like getPredictionResponse or getPredictionProbabilities are applicable.
+
+head(as.data.frame(pred))
+head(getPredictionTruth(pred))
+head(getPredictionResponse(pred))
+
+#The columns iter and set in the data.frame indicate the resampling iteration and the data set (train or test) for which the prediction was made.
+
+#----------
+
+# *By default, predictions are made for the test sets only. If predictions for the training set are required, set predict = "train" (for predictions on the train set only) or predict = "both" (for predictions on both train and test sets) in makeResampleDesc. In any case, this is necessary for some bootstrap methods (b632 and b632+) and some examples are shown later on.
+
+# Below, we use simple Holdout, i.e., split the data once into a training and test set, as resampling strategy and make predictions on both sets.
+
+## Make predictions on both training and test sets:
+
+rdesc = makeResampleDesc("Holdout", predict = 'both')
+r = resample("classif.lda", iris.task, rdesc, show.info = FALSE)
+r
+r$measures.train
+
+#===========================
+
+#LEARNER MODELS:
+
+#In each resampling iteration a Learner is fitted on the respective training set. By default, the resulting WrappedModel are not included in the ResampleResult and slot $models is empty. In order to keep them, set models = TRUE when calling resample, as in the following survival analysis.
+
+## 3-fold cross-validation
+rdesc = makeResampleDesc("CV", iter =3)
+r = resample("surv.coxph", lung.task, rdesc, show.info = FALSE, models = TRUE)
+r$models
