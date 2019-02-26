@@ -1,0 +1,335 @@
+#-----------------------------
+# HIGH-PERFORMANCE COMPUTING
+#-----------------------------
+
+# Takeaways
+#------------------------------
+
+# R is an interpreted scripting language. Compiled binaries (rowSums() function) run much faster than sequences of compiled binaries (for loops). We will minimize computation time of our R scripts by minimizing the time spent calling the binaries and maximizing the time spent in the binaries.
+
+#Listing 6-1: Binaries vs Loops
+
+# Declare 10mil random numbers in a data frame
+df <- data.frame(matrix(nrow = 10000, ncol = 1000, runif(n = 10000*1000)))
+
+# Compute the sum of each row with a for loop 
+# Completes in 96.692 seconds
+
+v1 <- rep(NA, 10000)
+for(i in 1:10000){
+v1[i] <- sum(df[i,])
+}
+
+#Use rowSums() binary
+#Completes in 0.053 seconds
+v2 <- rowSums(df)
+
+# Results are exactly the same # Expression evaluates to TRUE 
+all.equal(v1, v2)
+#-----------------------------------------
+#for Loops and Memory Allocation
+#-----------------------------------------
+#As discussed, we want to avoid for loops when possible because they sequentially call binaries rather than use a single precompiled binary. We will illustrate the use of for loops to compute the return matrix and benchmark them against other methods.
+
+#x <- 1:10
+#y <- x[1] * 2
+#for( i in 2:10 ) y <- c(y, x[i] * 2)
+
+#where c() can be any concatenation operator like c(), cbind(), or rbind() can slow down a program substantially if called many times because it changes the size of the variable y. Every time this is called, R must create a temporary variable corresponding to c(x,y), re-declare (or re-allocate) y as a larger variable with new dimensions, and then assign the variable to the new y. Remember, this is fine in general, but expressions like these are often placed inside loops when building larger data sets
+
+#A program will always run faster if expressed like this:
+
+#z <- rep(numeric(), 10)
+#x <- 1:10
+#for( i in 1:10 ) z[i] <- x[i] * 2
+
+#The vector z at the end of the second snippet is the same as y at the end of the first snippet. The vector z was declared (or pre-allocated) at the beginning to have ten numeric elements, allowing R to make only one memory allocation but ten equivalent assignments.
+
+#There is a very significant time difference between pre-allocating and re-allocating.
+
+#---------------------------------------------
+#Listing 6-2. Pre-allocation vs. Re-allocation
+#----------------------------------------------
+
+#library
+library(zoo)
+#time the code
+library(tictoc)
+
+#load data
+load("~/Desktop/Finance/Automated Systems/Code for R/Platform/functions/Environment3.RData")
+
+#Sequentially re-allocating space in a for loop
+
+# Sequentially re-allocating space in a for loop
+RETURN <- NULL
+for(i in 2:nrow(DATA[["Close"]])){
+RETURN <- rbind(RETURN, t((matrix(DATA[["Close"]][i, ]) / matrix(DATA[["Close"]][i-1, ])) - 1))
+}
+RETURN <- zoo( RETURN, order.by = index(DATA[["Close"]])[-1])
+
+# Taking a long time to compute this
+
+#Pre-allocating space and computing in a for loop
+
+RETURN <- zoo(matrix(ncol = ncol(DATA[["Close"]]),
+nrow = nrow(DATA[["Close"]])),
+order.by = index(DATA[["Close"]]))
+
+tic("begin")
+for(i in 2:nrow(DATA[["Close"]])){
+RETURN[i,] <- t((matrix(DATA[["Close"]][i, ]) / matrix(DATA[["Close"]][i-1, ])) - 1)
+#sanity check
+print(RETURN[i,])
+}
+toc("end")
+#took 4182 seconds (69 minutes to go over 68 years of data with 500 stocks at a daily frequency. Thats 12 million 410k data points. 69 mb to store)
+
+#---------------------------------
+#apply-Style Functions
+#---------------------------------
+
+#apply-style functions are often confused as being necessarily faster than for loops. They can be faster in some scenarios but are not generally. The counterargument to the assertion that apply-style functions are faster is that they actually depend on R-level for loops to run. This has given rise to the term loop hiding, highlighting the idea that apply-style functions look and generalize nicer than for loops but are really just a clever and flexible wrapper.
+
+#apply-style functions pre-allocate memory to the assigned variable by default but contain a lot of internal constructs for safety and generality that can slow them down. An efficiently written apply-style function will be slightly slower but more generalizable than an efficiently written for loop. 
+
+#Listing 6-3. Writing Efficient apply-Style Functions
+# Using rollapply() element-by-element
+RETURN <- rollapply(DATA[["Close"]], width = 2,
+            FUN = function(v) (v[2]/v[1]) - 1,
+            align = "right",
+            by.column = TRUE,
+            fill = NA)
+# 105.77 seconds
+# Using rollapply() row-by-row
+timelapse <- proc.time()[3]
+RETURN <- rollapply(DATA[["Close"]], width = 2,
+            FUN = function(v) (v[2,]/v[1,]) - 1,
+            align = "right",
+            by.column = FALSE,
+            fill = NA)
+
+proc.time()[3] - timelapse
+# 65.37 seconds
+
+
+#--------------------------
+#Use Binaries Creatively
+#--------------------------
+# Sometimes there is no clear way to utilize an existing binary, as in Listing 6-1 with rowSums(), so you will have to search for a more creative method to keep the loop inside the binary. Dissecting Listing 6-4, we see the division operator, the lag() function, and the subtraction operator. All of these operators loop the specified operation inside the binary after checking for equal dimension and class. 
+
+#Listing 6-4. Calculating the Return Matrix with Binaries
+timelapse <- proc.time()[3]
+#tic("begin")
+RETURN <- (DATA[["Close"]]/lag(DATA[["Close"]], k = -1))
+proc.time()[3] - timelapse
+#toc("end")
+
+#5.011 seconds
+
+#----------------------------------
+#From speed perspective the following was the hierarchy of computing returns from slowest to fastest:
+# 1) rollapply() by element  
+#2) rollapply() by row 
+#3) for() loop 
+#4) x/lag(x) -1 
+
+#-----------------------------------
+#Another way to measure time (similar to one i used)
+#----------------------------------
+
+timeLapse <- proc.time()[3]
+for( i in 1:1000000) v <- runif(1) 
+proc.time()[3] - timeLapse
+
+
+#-----------------------------------------
+# MULTICORE COMPUTING IN R
+#-----------------------------------------
+
+#This section will explore multicore computing in R for UNIX and Windows systems. (Note: Checked that macosx is certified unix as well)
+
+#--------------------------------
+#Embarassingly Parallel processes
+#--------------------------------
+
+#Algorithms can be hard to parallelize when processes need to communicate with each other during computation.
+
+#f an algorithm can be executed by splitting up the data, handing a piece to each process, and aggregating the results, it is simple to parallelize. Computation of the RETURN matrix is an embarrassingly parallel process. We will study it to determine whether it nets significant speed gains from parallelization.
+
+#R gives us limited facilities for communicating between processes in multicore computations, so most of our implementations will be embarrassingly parallel. Most importantly, remember that R is an interpreted language, so speed gains from utilizing purely binaries will almost always exceed speed gains from parallelizing for loops or other loop-hiding functions.
+
+#---------------------
+#doMC and doParallel
+#---------------------
+
+#According to the documentation, the processes should share memory in most cases but will replicate the data in the parent environment if it determines the processes are modifying it. We will generally assume the parallel back end replicates memory for every process because this behavior is OS-specific and poorly documented. This is an important reason to keep an eye on your memory, swap memory, and CPU utilization when testing multicore code. If a process spills into swap memory or throws an out-of-memory error because it is replicating the parent environment, you may want to consider reducing the number of processes or computing the algorithm on a single core.
+
+#The workers variable should be declared with the number of processes you would like to run. Your computer will dole out processes in a round-robin fashion to your available CPU cores, so setting workers to a value higher than the number of physical CPU cores in your machine will trigger hyperthreading. As mentioned previously in this text, this may be advantageous on machines that will run other non-R processes concurrently with the trading platform. We will study this behavior later in the chapter.
+
+#----------------------
+
+#Listing 6-6. Registering Parallel Back End in Unix
+
+library(doMC)
+workers <- 4
+registerDoMC(cores = workers)
+
+#------------------------
+# The foreach package
+#------------------------
+
+#Now that we have registered a parallel backend, we can use the foreach package to parallelize our computations.
+
+# The package provides an intuitive and flexible interface for dispatching jobs to separate R processes. It works just like a typical R for loop, but with a few caveats. Given an iterator variable, i, it will dispatch one process per value in the looping range of i. If multiple iterators are supplied, i and j, it will dispatch a number of processes equal to the number of elements in the smaller of the two ranges of i and j. This means there is no recycling. 
+
+#Listing 6-8. Examples with foreach Package
+
+library(foreach)
+#Returns a list
+foreach(i = 1:4) %dopar% {
+j <- i + 1
+sqrt(j)
+}
+
+#Returns a vector
+foreach(i = 1:4, .combine = c) %dopar% {
+j <- j + 1
+sqrt(j)
+}
+# We will usually specify the .combine argument with the function c(), rbind(), or cbind() to let the function know we want the results returned in a concatenated vector or data frame of the results.
+
+# Returns a matrix
+foreach(i = 1:4, .combine = rbind) %dopar% {
+j <- i + 1
+matrix(c(i,j,sqrt(j)), nrow = 1)
+}
+
+#Returns a data frame
+foreach(i = 1:4, .combine = rbind) %dopar%{
+j <- i + 1
+data.frame(i = i, j = j, sqrt.j = sqrt(j))
+}
+
+#Obviously these examples are too small to gain efficiency from multicore processing. They are almost certainly slower because the workload of the process communication overhead is greater than that of the mathematics.
+
+#-----------------------------------
+# The foreach Package in Practice
+#----------------------------------
+
+#1) Integer Mapping
+
+#Integer mapping involves breaking up a numerical problem into equally sized pieces. For simple problems, like computing the sum of each row, the integer mapping process is straightforward. For 100 rows in 4 processes, we dispatch rows 1 through 25 to process 1, rows 26 through 50 to process 2, and so on. 
+
+#Integer mapping of right aligned time series:
+#Listing 6-9 declares the function delegate() that returns the indices of rows required for process i given n rows of data, a window size of k, and p total processes.
+
+#Listing 6-9. Integer Mapping for Multicore Time-Series Computations
+
+delegate <- function(i=i, n=n, k=k, p = workers){
+nOut <- n - k + 1
+nProc <- ceiling(nOut/p)
+return(((i-1)*nProc + 1) : min(i * nProc + k - 1, n))
+}
+
+#Test i as 1 through 4 to verify it matches our example
+lapply(1:4, function(i) delegate(i, n = 100, k = 5, p = 4))
+
+
+#2) Computing the Return Matrix with foreach
+
+#Listing 6-10 will show how to use for loops inside foreach() to compute the return matrix. Listing 6-11 will use rollapply(). 
+
+#Listing 6-10. Computing the Return Matrix with foreach and for Loops
+
+k <- 2
+
+#Using for loop, pre-allocated
+timelapse <- proc.time()[3]
+
+RETURN <- foreach(i = 1:workers, .combine = rbind, .packages = "zoo") %dopar% {
+CLOSE <- as.matrix(DATA[["Close"]])
+
+jRange <- delegate(i = i, n = nrow(DATA[["Close"]]), k = k, p = workers)
+
+subRETURN <- zoo(
+matrix(numeric(),
+ncol = ncol(DATA[["Close"]]),
+nrow = length(jRange) - k + 1),
+order.by = (index(DATA[["Close"]])[jRange])[-(1:(k-1))])
+
+names(subRETURN) <- names(DATA[["Close"]])
+
+for(j in jRange[-1]){
+jmod <- j - jRange[1]
+subRETURN[jmod,] <- (CLOSE[j,]/CLOSE[j-1,]) - 1
+}
+subRETURN
+
+}
+
+proc.time()[3] - timelapse
+
+#These results are admittedly confusing. In theory, breaking up an algorithm into p parallel processes should increase its speed by no more than p times. Here, we see a speed increase of almost eight times using four processes. This only serves to prove that we should test everything in R, because we cannot anticipate every behavior and quirk of the language and its packages.
+
+#Additionally, R processes do not dedicate themselves to specific cores; rather, they drift between cores, even at full load where the number of processes equals the number of cores. Running a 4-process test on a 12-core machine may increase cache efficiency in unanticipated ways.
+
+#3) Computation Indicators with foreach
+
+#We will make the most use of foreach() when computing indicators. It becomes harder to build solutions with R binaries as indicators get more complex and customized. We will cover computation of the indicators introduced in Chapter 4. Listing 6-12 computes the simple moving average with a few methods using foreach().
+
+#Listing 6-12. Wrapper Function for Multicore Time-Series Computations
+
+mcTimeSeries <- function(data, tsfunc, byColumn, windowSize, workers,...){
+#windowSize = 2
+#for windows compatability
+args <- names(mget(ls()))
+export <- ls(.GlobalEnv)
+export <- export[!export %in% args]
+
+#foreach powerhouse
+SERIES <- foreach(i = 1:workers, .combine = rbind, .packages = loadedNamespaces(), .export = export) %dopar% {
+jRange <- delegate(i = i, n = nrow(data), k = windowSize, p = workers)
+
+rollapply(data[jRange,],
+width = windowSize,
+FUN = tsfunc,
+align = "right",
+by.column = byColumn)
+}
+
+#Correct formatting of column names and dimensions
+names(SERIES) <- gsub("\\...+","",names(SERIES))
+
+if(windowSize > 1){
+PAD <- zoo(matrix(nrow = windowSize-1, ncol = ncol(SERIES), NA),
+order.by = index(data)[1:windowSize-1])
+names(PAD) <- names(SERIES)
+SERIES <- rbind(PAD, SERIES)
+}
+if(is.null(names(SERIES))){
+names(SERIES) <- gsub("\\..+", "", names(data)[1:ncol(SERIES)])
+}
+
+#Return results
+return(SERIES)
+}
+
+#You will notice this is only a slight modification of our first multicore rollapply() implementation in Listing 6-11. This makes it remarkably easy to compute indicators and rule sets for time series by swapping out the function declaration, window size, and byColumn parameters
+
+
+#Listing 6-13. Computing Indicators with Our Multicore Wrapper
+
+#Computing the return matrix
+
+tsfunc <- function(v)(v[2,]/v[1,]) - 1
+RETURN <- mcTimeSeries( DATA[["Close"]], tsfunc, FALSE, 2, workers )
+
+#Computing a simple moving average
+SMA <- mcTimeSeries(DATA[["Close"]], mean, TRUE, 20, workers)
+
+#Computing an MACD, n1 = 5, n2 = 34
+tsfunc <- function(v) mean(v[(length(v) - 4):length(v)]) - mean(v)
+MACD <- mcTimeSeries( DATA[["Close"]], tsfunc, TRUE, 34, workers )
+
+#With our wrapper function, the average time-series computation takes about two lines of code and is just shy of p times as fast. Additionally, declaring all the arguments to the wrapper function outside of the function call allows us to modify them from anywhere in our code. 

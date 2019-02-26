@@ -1,0 +1,62 @@
+#---------------------------
+# CHAPTER 5: RULE SETS
+#---------------------------
+
+#Rule sets link the indicator to the trading decisions. We have given many simple examples in the discussions about indicators, but rule sets tend to get very complex when we include money management elements.
+
+#It is dangerous to completely decouple the trading decision aspects from the money management aspects of rule sets. In other words, we do not want to decouple the offense from the defense. They should interact and complement each other in an optimal manner discovered through research and optimization. 
+
+#-----------------------------
+# Example Rule Sets
+#-----------------------------
+
+# 1) Overlays
+
+#Example #1: Single Stock Simple Moving Average
+#• If the stock price crosses above the SMA, buy n shares at market.
+#• If the stock price crosses below the SMA, sell short n shares at market. Commentary
+#1. This position is always either long or short, never neutral.
+#2. The trade size is constant.
+#3. This trades a single stock and has no portfolio extensibility.
+
+
+#2) Oscillators
+
+#Example #2: Portfolio MACD
+#1. Calculate the absolute value of a 20-period Rolling Sharpe Ratio for each stock.
+#2. Calculate the MACD for each stock.
+#3. This is for ten stocks with the highest absolute value Rolling Sharpe Ratio.
+#• Establish long n shares at market if the MACD is positive. 10
+#• Establish short n shares at market if the MACD is negative. 10
+#Commentary
+#1. This position is always either long or short, never neutral.
+#2. The trade size is constant.
+#3. The small trade size enforces some diversification.
+#4. This works with a portfolio of stocks.
+
+
+#3) Accumulators
+
+#Example #3: Portfolio Accumulation/Distribution Line
+#1. This is for stocks with an Accumulation/Distribution (A/D) line that had a 200-period minimum in the past 20 periods.
+#• Buy n shares at market if the 20-period MACD crosses above zero. 10
+#• See rule #3 for the condition.
+#2. This is for stocks with an A/D line that had a 200-period maximum in the past 20 periods.
+#• Sell short n shares at market if the 20-period MACD crosses above zero.
+#• See rule #3 for the condition.
+#3. If buying/selling short in accordance with rule #1 or #2 would require having more than n total shares outstanding,
+#• Exit position with lowest position-adjusted 10-period rolling Sharpe Ratio atmarket. 
+#Commentary
+#1. This position is always either long or short, never neutral.
+#2. The trade size is constant.
+#3. The small trade size enforces some diversification.
+#4. This works with a portfolio of stocks.
+
+#----------------------------------------------
+#Filters, Triggers, and Quantifications of Favor
+#-----------------------------------------------
+#We see a theme developing with portfolio-based strategies. Components can be classified as a filter, trigger, or quantification of favor. Filter conditions span multiple periods, while trigger conditions span a single period. Filter conditions help select the stocks, and trigger conditions tell the strategy specifically when to enter/exit. For example, SMA > Close is a filter condition, while SMA crossing above Close is a trigger condition. The former is likely to be true or untrue for many periods at a time, while the latter is likely to be true at specific and isolated times and false otherwise.
+
+#Quantifications of favor are used to determine which stocks should be exited when the filter and trigger determine the strategy should enter a new trade. Also, quantifications of favor determine which stocks to enter when the filter and trigger determine more positions should be entered than are allowed by the rule set.
+
+#Strategies do not strictly require filters and quantifications of favor to function. Single-stock strategies can perform well with trigger-only strategies. Portfolio strategies find very necessary robustness in the inclusion of filters and quantifications of favor. Thinking about portfolio rule sets in this framework can help simplify development. Developers need to recognize that conventional trigger-only strategies will not work because they provide no way of filtering out undesirable triggers or quantifying the favorability of a stock position at a given time.

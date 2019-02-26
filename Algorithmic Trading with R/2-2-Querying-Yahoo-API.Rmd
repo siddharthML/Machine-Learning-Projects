@@ -1,0 +1,23 @@
+#NETWORKING PART - I
+
+#**Code is outdated. New way to get stocks from yahoo API is using getsymbols from quantmod library.**
+#------------------------
+#Libraries
+library(quantmod)
+#------------------------
+#Yahoo API Examples
+#------------------------
+#the first input is symbol of share, the second input is API which will usually be yahoo.
+
+#Get microsoft shares:
+#getSymbols('MSFT',src='yahoo')
+#Get google shares:
+getSymbols('GOOGL', src='yahoo')
+
+
+setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/functions")
+dump(list = c('GOOGL'), "yahoo.R")
+
+
+#-------------------------
+

@@ -1,0 +1,308 @@
+#-----------------------------
+# CHAPTER 3 - DATA PREPARATION
+#-----------------------------
+
+#Library
+library(BatchGetSymbols)
+library(ggplot2)
+#To convert .rds format to .csv format use the rio library
+library(rio)
+#To remove empty .csv files
+library(R.utils)
+#indexing
+library(zoo)
+
+#----------------------------
+
+#Load DATA
+load("~/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata/MERGED DATA TABLE.RData")
+
+#-----------------------------
+#Handling NA Values
+#-----------------------------
+#setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata")
+#Upload Michael Kors data and generate some Na values.
+
+# set dates
+#first.date <- Sys.Date() - 2500
+#last.date <- Sys.Date()
+#freq.data <- 'daily'
+# set tickers
+#tickers <- c('KORS')
+
+#l.out <- BatchGetSymbols(tickers = tickers, 
+#                         first.date = first.date,
+#                         last.date = last.date,
+#                         cache.folder = file.path(setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata"), 'Kors') ) 
+
+#View michael kors data
+#View(l.out[["df.tickers"]])
+
+#we see ret.adjusted.prices(column 9) and ret.closing.prices(10) have NA in the first row. Lets see how we get rid of em.
+
+#------------------------------------
+#Listing 3-1. Eliminating Pre-S&P Data
+#------------------------------------
+setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata")
+
+#Coding note: The %in% is a value matching binary operator which returns True or False based on whether the two arguments match or not. Try 6:10 %in% 1:36 to see its effect. 
+
+
+#if( "SPdates.R" %in% list.files() ){
+#source("SPdates.R")
+#} else {
+#url <- "http://trading.chrisconlan.com/SPdates.csv"
+#S <- read.csv(url, header = FALSE, stringsAsFactors = FALSE)
+#dump(list = "S", "SPdates.R")
+#}
+
+#names(S) <- c("Symbol", "Date")
+#the issue here is actually this dude's document which is out of date. That's why when the stocks between those from getbatch and his file dont match it produces a 0 length vector. Two ways to solve it:
+#either get rid of all non-overlapping stocks or go and correct his file. I would rather do the former for now or find a substitute file.
+#S$Date <- strptime(S$Date, "%m/%d/%Y")
+#for(s in names(DATA[["Close"]])){
+#for(i in c("Open", "High", "Low", "Close", "Adj Close", "Volume")){
+
+#error check
+#print(S[,1])
+
+#Sindex <- which(S[,1] == s)
+
+#error check
+#print(Sindex)
+#print(S[Sindex, "Date"])
+
+
+#if(S[Sindex, "Date"] != "1900-01-01 EST" & S[Sindex, "Date"] >= "2000-01-01 EST"){
+#DATA[[i]][index(DATA[[i]]) <= S[Sindex, "Date"], s] <- NA
+#}
+#}
+#print(s)
+#}
+
+#Next step is to create my own S document. I will need to create my own list of stocks which should be easy because of the why i have saved the names. Just remove the extension and store in a list. Then see the dates that overlap and fill it up followed by finding the dates for stocks that dont overlap. 
+
+#-----------------
+#Test
+#----------------
+
+if( "MySPData.R" %in% list.files() ){
+source("MySPData.R")
+} else {
+url <- "/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata/MySPDATA.csv"
+S <- read.csv(url, header = FALSE, stringsAsFactors = FALSE)
+dump(list = "S", "MySPDATA.R")
+}
+
+names(S) <- c("Symbol", "Date")
+S$Date <- strptime(S$Date, "%m/%d/%Y")
+for(s in names(DATA[["Close"]])){
+for(i in c("Open", "High", "Low", "Close", "Adj Close", "Volume")){
+
+#error check
+#print(S[,1])
+
+Sindex <- which(S[,1] == s)
+
+#error check
+#print(Sindex)
+#print(S[Sindex, "Date"])
+#Insert code for removing S[Sindex, "Date"] length 0 here.
+
+
+if(S[Sindex, "Date"] != "1900-01-01 EST" & S[Sindex, "Date"] >= "2000-01-01 EST"){
+DATA[[i]][index(DATA[[i]]) <= S[Sindex, "Date"], s] <- NA
+}
+}
+print(s)
+}
+
+#The code is working above. The issue was that the stocks in that dude's list didnt match the ones in mine. But when I added dates to my list of stocks (although the dates are wrong) the code seems to be working now. Although, I am not fully sure what difference it has made. His numbers look like bullshit as well. IBM found in 1900? GTFO.
+
+
+#------------------------------------
+#MERGING TO THE UNIFORM DATA TEMPLATE
+#------------------------------------
+
+#4 ways to deal with missing values:
+#1) Forward replacement 2) Linearly smoothed replacement 3) Volume-weighted smoothed replacement 4) Doing nothing
+
+#---------------------------------------
+#Declaring Temporary Data for Discussion
+#----------------------------------------
+temp <- c(DATA[["Close"]][index(DATA[["Close"]]) %in% c("2015-11-23",
+"2015-11-24","2015-11-25"), "KORS"],
+zoo(NA, order.by = strptime("2015-11-26", "%Y-%m-%d")),
+DATA[["Close"]][index(DATA[["Close"]]) %in% c("2015-11-27"), "KORS"],
+zoo(NA, order.by = strptime(c("2015-11-28", "2015-11-29"), "%Y-%m-%d")),
+DATA[["Close"]][index(DATA[["Close"]]) %in% c("2015-11-30",
+"2015-12-01","2015-12-02"), "KORS"])
+
+print(temp)
+
+#We see that there are NA values in KORS stocks between 2015-11-23 and 2015-12-02. We will try and fill up these NA values with one of the 4 methods described above.
+
+#------------------------------
+#1) Forward Replacement
+
+# The forward replacement function will check whether a missing value is present in the last element of a vector and replace it with the most recent nonmissing value. In listing 3-3, we will be passing the function to rollapply(), which treats a vector of length n as n-k slices of the length k and cycles through them applying the function.
+
+#Listing 3-3. Forward Replacement Function
+
+forwardfun <- function(v,n){
+if(is.na(v[n])){
+return(v[max(which(!is.na(v)))])
+} else{
+return(v[n])
+}
+}
+
+maxconsec <- 3
+
+# We pass maxconsec to rollapply() in "width = "
+# and pass it again to forwardfun() in "n = "
+
+forwardrep <- rollapply(temp,
+width = maxconsec,
+FUN = forwardfun,
+n = maxconsec,
+by.column = TRUE,
+align = "right")
+
+plot(forwardprep)
+
+#(plotting function not the same as book)
+
+#-------------------------------
+#2) Linearly Smooth Replacement
+
+# For linearly smoothed replacement, maxconsec must be odd and greater than the maximum number of consecutive NAs plus two. In our example, that is five.
+
+#Listing 3-4. Linearly Smoothed Replacement
+
+linearfun <- function(v, n){ 
+m <- (n + 1)/2 
+if(is.na(v[m])){
+a <- max(which(!is.na(v) & seq(1:n) < m)) 
+b <- min(which(!is.na(v) & seq(1:n) > m)) 
+return(((b - m)/(b - a))*v[a] + ((m - a)/(b - a))*v[b])
+} else {
+return(v[m]) }
+}
+
+maxconsec <- 5
+linearrep <- rollapply(temp,
+width = maxconsec,
+FUN = linearfun,
+n = maxconsec,
+by.column = TRUE,
+align = "center"
+)
+
+plot(linearrep)
+
+#--------------------------------------
+#3 Volume-Weighted Smooth Replacement
+
+#To study volume-weighted smoothing, we will declare a variable containing the KORS volume from the same time period. We specify maxconsec here the same as in Listing 3-4: an odd number greater than the maximum number of consecutive NA values plus two.
+
+#Listing 3-5. Volume-Weighted Smoothed Replacement
+
+voltemp <- c(DATA[["Volume"]][index(DATA[["Close"]]) %in% c(index(temp)[1:3]), "KORS"], 
+zoo(NA, order.by = index(temp)[4]),
+DATA[["Volume"]][index(DATA[["Close"]]) %in% c(index(temp)[5]), "KORS"], zoo(NA, order.by = index(temp)[6:7]),
+DATA[["Volume"]][index(DATA[["Close"]]) %in% c(index(temp[8:10])), "KORS"])
+
+#Volume-Weighted Smoothed Replacement Function
+volfun <- function(v, n, vol){
+m <- (n + 1)/2 
+if(is.na(v[m])){
+a <- max(which(!is.na(v) & seq(1:n) < m))
+b <- min(which(!is.na(v) & seq(1:n) > m))
+return(((v[a] + ((m-a-1)/(b-a)) * (v[b] - v[a])) * vol[a] +
+            (v[a] + ((m-a+1)/(b-a)) * (v[b] - v[a])) * vol[b]) /
+              (vol[a] + vol[b]))
+              } else { return(v[m])
+} 
+}
+
+
+maxconsec <- 5
+volrep <- rollapply(cbind(temp, voltemp),
+width = maxconsec,
+FUN = function(v) volfun(v[,1], n = maxconsec, v[,2]), by.column = FALSE,
+align = "center")
+
+
+plot(volrep)
+
+# In the spirit of maintaining valid data and simulation results, forward replacement and doing nothing are the only correct ways to go. In the spirit of practicality within the R language, we will be doing nothing to the NA values discussed in this section
+
+
+#--------------------------------------
+# IMPLEMENTING ADJUSTMENTS (IN CLOSING PRICE)
+#--------------------------------------
+
+# For more details on how adjusting for cash dividends and stock splits affects closing price see the book. Succinctly, it is important to ensure that adjustments are taken into account during the time period they happen and we need to ensure it isnt propogated further before that. 
+
+#Listing 3-6. Adjusting OHLC (Open, High, Low, Close) Data
+
+# Declare new zoo data frame of adjustment factors
+
+MULT <- DATA[["Adj Close"]]/DATA[["Close"]]
+
+# Store Close and Open Prices in new variable "Price" and "OpenPrice"
+
+DATA[["Price"]] <- DATA[["Close"]]
+DATA[["OpenPrice"]] <- DATA[["Open"]]
+
+#Adjust, Open, High, and Low
+DATA[["Open"]] <- DATA[["Open"]] * MULT
+DATA[["High"]] <- DATA[["High"]] * MULT
+DATA[["Low"]] <- DATA[["Low"]] * MULT
+
+#Copy Adjusted Close to Close
+DATA[["Close"]] <- DATA[["Adj Close"]]
+
+# Delete Adjusted Close
+DATA[["Adj Close"]] <- NULL
+
+#We now have seven variables in our DATA list, adjusted Open, adjusted High, adjusted Low, adjusted Close, adjusted Volume, unadjusted Close, and unadjusted Open. We delineate the unadjusted Close and Open by calling Price and OpenPrice, respectively
+
+#-------------------------------------
+#Test for and Correct Inactive Symbols
+#-------------------------------------
+
+#Listing 3-7 will walk backward in time on each symbol and perform forward replacement if it determines a symbol to be inactive. While transfers of deprecated symbols can still occur privately, setting the volume as zero post-deprecation is the most logically consistent considering the account standards of corporate actions and the effect desired in volume-dependent computations.
+
+#Listing 3-7: Forward Replacement on Inactive Symbols
+
+for(s in names(DATA[["Close"]])){
+if(is.na(DATA[["Close"]][nrow(DATA[["Close"]]), s])){
+maxInd <- max(which(!is.na(DATA[["Close"]][,s])))
+for(i in c("Close", "Open", "High", "Low")){
+DATA[[i]](maxInd+1):nrow(DATA[["Close"]], s) <- DATA[["Close"]][maxInd,s]
+}
+for(i in c("Price", "OpenPrice")){
+DATA[[i]][(maxInd+1): nrow(DATA[["Close"]]),s] <- DATA[["Price"]][maxInd,s]
+}
+DATA[["Volume"]][(maxInd+1):nrow(DATA[["Close"]]),s] <- 0
+}
+}
+
+#------------------------------------
+# COMPUTING THE RETURN MATRIX
+#-----------------------------------
+
+#Basically computing percentage returns using lag() function.
+
+#3-8 Computing Return Matrices
+NAPAD <- zoo(matrix(NA, nrow = 1, ncol = ncol(DATA[["Close"]])),
+order.by = index(DATA[["Close"]])[1])
+names(NAPAD) <- names(DATA[["Close"]])
+
+# Compute Daily Close-to-Close Returns
+RETURN <- rbind(NAPAD, (DATA[["Close"]]/lag(DATA[["Close"]], k = -1)) -1)
+
+#Compute overnight returns (Close-to-Open)
+OVERNIGHT <- rbind(NAPAD, (DATA[["Open"]]/lag(DATA[["Close"]], k = -1)) -1)

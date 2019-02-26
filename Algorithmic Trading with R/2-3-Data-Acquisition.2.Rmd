@@ -1,0 +1,230 @@
+#----------------------
+# DATA ACQUISITION
+#-----------------------
+#Library
+library(BatchGetSymbols)
+library(ggplot2)
+#To convert .rds format to .csv format use the rio library
+library(rio)
+#To remove empty .csv files
+library(R.utils)
+#----------------------
+
+#List of S&P 500 Stocks
+
+url <- "http://trading.chrisconlan.com/SPstocks.csv"
+S <- as.character(read.csv(url, header = FALSE)[,1])
+
+setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata")
+dump(list = "S", "S.R")
+#--------------------------
+#Initial Directory Loader
+#--------------------------
+#Load "invalid.R" file if available
+invalid <- character(0)
+setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata")
+
+if("invalid.R" %in% list.files())source("invalid.R")
+
+# Find all symbols not in directory and not missing
+toload <- setdiff(S[!paste0(S,".csv") %in% list.files()], invalid)
+
+# Fetch symbols with yahoo function, save as .csv or missing
+
+first.date <- Sys.Date()-365
+last.date <- Sys.Date()
+
+df.SP500 <- GetSP500Stocks()
+#df.SP500 <- df.SP500(c(1,2,3),)
+tickers <- df.SP500$tickers
+
+#The cache folder helps store 
+l.out <- BatchGetSymbols(tickers = tickers,
+first.date = first.date,
+last.date = last.date,
+cache.folder = file.path(setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata"),'BGS_Cache'))
+
+#-----------------
+#Turn all files in this folder into csv only for coding convenience
+setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata/BGS_Cache")
+
+#Put the rds files in a list
+filelist <- list.files(pattern = ".rds")
+
+#Convert the list into csv for future ease of writing code. However, rds is a much better format to store data. Especially large data.
+
+convertcsv <- lapply(filelist, function(x) { 
+                            rdsfile <- readRDS(x)
+                            write.csv(rdsfile, 
+                       file = sub(pattern = "\\.rds$", replacement = ".csv", x = x))
+ })
+
+#remove .rds files so we are only left .csv files
+junk <- dir(path = "/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata/BGS_Cache", pattern = "*.rds")
+file.remove(junk)
+
+#--------------------
+#Remove empty csv files
+
+lapply(Filter(function(x) countLines(x)<=1, list.files(pattern='.csv')), unlink)
+
+
+#-------------------
+print(l.out$df.control)
+print(l.out$df.tickers)
+
+#---------------
+
+#p <- ggplot(l.out$df.tickers, aes(x = ref.date, y = price.close))
+#p <- p + geom_line()
+#p <- p + facet_wrap(~ticker, scales = 'free_y') 
+#print(p)
+#-------------------------------
+#Loading Data Into Memory
+#-------------------------------
+#Rename below and remove unnecessary columns.So remove ticker and V1(?) i.e. column 2 and 9.
+#Change names from: ref.date = DATE, price.open = Open, price.high = High, price.low = Low, price.close = Close, price.adjusted = Adj Close and volume = Volume.
+
+
+setwd("/Users/siddharth/Desktop/Finance/Automated Systems/Code for R/Platform/stockdata/BGS_Cache")
+
+S <- sub(".csv", "", list.files())
+
+require(data.table)
+
+DATA <- list()
+
+for(i in S){
+suppressWarnings(
+DATA[[i]] <- fread(paste0(i,".csv"), sep = ","))
+DATA[[i]] <- setcolorder(DATA[[i]], c(8, 1:7, 9))
+#drop ticker and v1
+DATA[[i]] <- subset(DATA[[i]], select = -c(2,9))
+#change column names
+colnames(DATA[[i]])[1] <- "Date"
+colnames(DATA[[i]])[2] <- "Open"
+colnames(DATA[[i]])[3] <- "High"
+colnames(DATA[[i]])[4] <- "Low"
+colnames(DATA[[i]])[5] <- "Close"
+colnames(DATA[[i]])[6] <- "Volume"
+colnames(DATA[[i]])[7] <- "Adj Close"
+
+#print((DATA[[i]]))
+DATA[[i]] <- (DATA[[i]])[order(DATA[[i]][["Date"]], decreasing = FALSE)]
+}
+
+
+#----------
+#TRIAL
+#----------
+#for(i in S){
+#suppressWarnings(
+#DATA[[i]] <- fread(paste0(i,".csv"), sep = ","))
+#DATA[[i]] <- setcolorder(DATA[[i]], c(8, 1:7, 9))
+#print(ncol(DATA[[i]]))
+#print(colnames(DATA[[i]]))
+#print(DATA[i])
+#print(DATA[[i]])
+}
+#ISSUE MISSING DATA. HOW TO REMOVE IT? BFB HAS MISSING DATA.
+#If ncol < 9 remove that dataframe/stock. Might have to insert this code after the cache. 
+
+
+#DATA <- DATA
+
+#for(a in DATA){
+#DATA[[i]] <- DATA[[i]][,c(8,2:9)]
+#print(DATA[[i]])
+#}
+
+
+
+#The DATA object now has the values of all our stocks stored in its data frame. If we want to peak inside a particular stock inside the DATA object we can use the following command
+
+
+#The material here is rather hackey. I had to change column reference to serial number instead of date which could potentially be incorrect in case the data is missing. Ideally, we would be using [["ref.date"]] rather than [["V1"]] to order our data. Anyway, I am bored AF of this and I'm moving on. 
+
+#Important take aways are I learned how to mass convert files as well as important and update SP500 values along with a new file storage system in the form of .rds files. 
+
+#------------------------------------
+#Organizing as Data Uniform Zoo Object
+#-------------------------------------
+
+library(zoo)
+
+# Compute the date template as a column of a data.frame for merging
+# Considers date are strings in YYYY-MM-DD format
+
+datetemp <- sort(unique(unlist(sapply(DATA, function(v) v[["Date"]]))))
+datetemp <- data.frame(datetemp, stringsAsFactors = FALSE)
+
+names(datetemp) <- "Date"
+
+# Double-check that our data is unique and in ascending-date order
+DATA <- lapply(DATA, function(v) unique(v[order(v$Date),]))
+
+#Next steps might require going back and renaming the header in the dataframe. This will be done inside the for loop. Again.
+
+
+#----------
+
+#Create 6 new objects that will hold our re-organized data
+
+DATA[["Open"]] <- DATA[["High"]] <- DATA[["Low"]] <- DATA[["Close"]] <- DATA[["Adj Close"]] <- DATA[["Volume"]] <- datetemp
+
+#This loop will sequentially append the columns of each symbol to appropriate Open, High, Low, etc. object
+
+for(s in S){
+
+for(i in rev(c("Open", "High", "Low", "Close", "Adj Close", "Volume"))){
+
+temp <- data.frame(cbind(DATA[[s]][["Date"]], DATA[[s]][[i]]), stringAsFactors = FALSE)
+
+#error check
+#print(temp)
+
+names(temp) <- c("Date", s)
+
+temp[,2] <- as.numeric(temp[,2])
+
+#error check
+#print(temp[,2])
+
+
+if(!any(!DATA[[i]][["Date"]][(nrow(DATA[[i]]) - nrow(temp)+1):nrow(DATA[[i]])] == temp[,1])){
+
+#ERROR HERE
+temp <- rbind(t(matrix(nrow = 3, ncol = nrow(DATA[[i]]) - nrow(temp), dimnames = list(names(temp)))), temp)
+
+#error check
+#print(temp)
+
+
+DATA[[i]] <- cbind(DATA[[i]], temp[,2])
+} else{
+
+DATA[[i]] <- merge(DATA[[i]], temp, all.x = TRUE, by = "Date")
+#print(DATA[[i]])
+}
+
+names(DATA[[i]]) <- c(names(DATA[[i]])[-(ncol(DATA[[i]]))], s)
+
+}
+
+DATA[[s]] <- NULL
+
+#Update user on progress
+if( which( S == s ) %% 25 == 0 ){
+cat( paste0(round(100 * which( S == s ) / length(S), 1), "% Complete\n") )
+}
+}
+
+
+#---------
+
+# Declare them as zoo objects for use with time-series functions
+DATA <- lapply(DATA, function(v) zoo(v[,2:ncol(v)], strptime(v[,1], "%Y-%m-%d")))
+#Remove extra variables
+rm(list = setdiff(ls(), c("DATA", "datadir", "functiondir", "rootdir")))
+
+#WE have now created one giant dataset with 504 columns representing stocks and 252 rows representing days of the year. 

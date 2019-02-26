@@ -1,0 +1,136 @@
+#-----------------------------------
+#   4.      INDICATORS
+#-----------------------------------
+
+# Computing indicators efficiently over batches of symbols in R requires a lot of familiarity with rollapply(). 
+
+#-------------------------------------
+
+# Indicator Types:
+# Based on visualization and rule sets.
+
+#1) Overlays
+#Overlays are best characterized by their scale. Overlays typically have the same or similar scale to the underlying asset and are meant to be laid over to chart of price history. Common examples are the simple moving average, Bollinger Bands, and volume-weighted average price. Overlays are commonly computed as the average of something added to a deviation of some form, or the price of the asset added to a curve of some form.
+
+#2) Oscillators
+#Oscillators are also best characterized by their scale. Oscillators typically oscillate around zero. These are typically plotted below the price history in charts because they do not share scale with it.
+#Rule sets typically concentrate around the indicator’s interaction with the zero line or other components of itself. Here’s an example: If the MACD rises above zero, buy the stock at market price.
+
+#3) Accumulators
+#Accumulators depend on the value of itself in past periods to calculate future values. This is different from most indicators that depend only on price history, not indicator history. They have the advantage of being window- length independent in that the user does not specify any n periods in the past to be computed. They are very often volume-oriented. Examples are On-Balance Volume, Negative Volume Index, and the Accumulation/Distribution Line. Example: If the Negative Volume Index crosses above a moving average of itself, buy the stock at market price.
+
+# 4) Pattern/Binary/Ternary
+#Pattern indicators are classic technical indicators like the head-and-shoulders. They involve detecting some pattern in the data and triggering a trading signal if found. When we are detecting these patterns with computers, these indicators are often called binary or ternary because they have two or three possible values, -1 (short), 0 (neutral), and 1 (long).
+
+#5) Machine Learning/Nonvisual/Black Box
+#When utilizing machine-learning methods to generate stock signals, the outputs are often multidimensional. These multidimensional outputs easily interact with rule sets optimized to handle them but are most often not worth visualizing. Not surprisingly, these strategies tend to be the most proprietary and have the highest information latency when used correctly.
+
+#-------------------------------
+#Example Indicators:
+#-------------------------------
+
+#Upload environment
+load("~/Desktop/Finance/Automated Systems/Code for R/Platform/functions/Environment3.RData")
+
+#Create subset of stocks
+exampleset <- c("AAPL", "GOOGL", "HP", "KORS", "TIF")
+
+#Original exampleset used Yahoo ("YHOO") and Cochler Ltd ("COH") as a stock which isnt a part of SP500 anymore.
+
+#SMA at time t is the sample average of the n most recent observations. Listing 4-1 computes the SMA using rollapply().
+
+#4.1) Simple Moving Average
+
+
+n <- 20
+meanseries <-
+rollapply(DATA[["Close"]][,exampleset],
+          width = n,
+          FUN = mean,
+          by.column = TRUE,
+          fill = NA,
+          align = "right")
+
+#plot(meanseries)
+#print(DATA[["Close"]][,c("AAL", "GOOGL", "HP", "KORS", "TIF")])
+
+
+#4.2) Moving Average Convergence Divergence Oscillator (MACD)
+
+n1 <- 5
+n2 <- 34
+MACDseries <- rollapply(DATA[["Close"]][,exampleset],
+width = n2,
+FUN = function(v) mean(v[(n2-n1+1):n2]) - mean(v),
+by.column = TRUE,
+fill = NA,
+align = 'right')
+
+#Note that we have organized our data as ascending by date. Recognize this direction when specifying functions in rollapply().
+
+
+#4.3) Bollinger Bands
+
+# Bollinger Bands consist of an upper, middle, and lower band. The middle band is a simple moving average, and the upper and lower bands are the middle band plus and minus two rolling sample standard deviations.
+
+
+n <- 20
+rollsd <- rollapply(DATA[["Close"]][,exampleset],
+width = n,
+FUN = sd,
+by.column = TRUE,
+fill = NA,
+align = "right")
+
+upseries <- meanseries + 2*rollsd
+lowseries <- meanseries + 2 - rollsd
+
+#4.4) Custom Indicator Using Correlation and Slope
+#We will compute a custom indicator by multiplying the rolling R^2 between price and time by the average price change of the period. 
+
+n <- 10
+customseries <- rollapply(DATA[["Close"]][, exampleset],
+width = n,
+FUN = function(v) cor(v, n:1)^2 * ((v[n] - v[1])/n),
+by.column = TRUE,
+fill = NA,
+align = "right")
+
+#-------------------------------------------
+# Indicators Utilizing Multiple Data Sets
+#-------------------------------------------
+
+#Sometimes indicators will utilize information from data sets other than the closing price. Most commonly we will have indicators that use closing price and volume, or indicators that use Open, High, and Low, as well as Close. The rollapply() function takes only one argument to data =, so we will have to manipulate the inputs and functions to accommodate this. The following will illustrate computation of the Chaikin Money Flow with rollapply()
+
+#Listing 4-5 will take advantage of the extensibility rollapply() has over looping by feeding it the close, high, low, and volume as a single zoo data frame concatenated by cbind(). We will then tell rollapply() which portions of the data frame represent each series for use in CMFfunc(). Take note of the method used to subset the combined data set algorithmically. This is a useful concept for calling apply-style functions on multiple data sets. We will make use of the by.column = FALSE option to make sure we feed rollapply() slices of data frames as opposed to vectors.
+
+#Listing 4-5. Chaikin Money Flow Using rollapply()
+
+CMFfunc <- function(close, high, low, volume){
+apply(((2*close-high-low)/(high - low))*volume,
+MARGIN = 2,
+FUN = sum)/ apply(volume, MARGIN = 2, FUN = sum)
+}
+
+n <- 20
+k <- length(exampleset)
+CMFseries <- rollapply(cbind(DATA[["Close"]][,exampleset],
+DATA[["High"]][,exampleset],
+DATA[["Low"]][,exampleset],
+DATA[["Volume"]][,exampleset]),
+FUN = function(v)
+CMFfunc(v[,(1:k)],
+v[,(k+1):(2*k)],
+v[,(2*k + 1):(3*k)],
+v[,(3*k+1):(4*k)]),
+
+by.column = FALSE,
+width = n,
+fill = NA,
+align = "right")
+
+names(CMFseries) <- exampleset
+
+#Doesnt work that well. I think the NA values are being a bother. Will have to get rid of those to work. 
+
+#Ultimately, whatever indicator we use, the hope is that it will not be based on random noise and the information it will reveal will help us determine a long or short-trading strategy. 
