@@ -1,0 +1,98 @@
+Exercise 6.9: Matlab Code
+
+
+%% Part 1
+import brml .∗
+load diseaseNet .mat;
+% Constructing a junction tree from jtree
+[jtpot jtsep infostruct]=jtree(pot);
+% Use the junction to compute all the marginals of the first symptoms, p(si = % Do the f u l l round of absorption
+j t p o t=a b s o r p t i o n ( j t p o t , j t s e p , i n f o s t r u c t ) ;
+% Loop through all the symptoms, calculate the marginal probability of %each symptom.
+disp(’ ’) % new line
+disp( ’Marginal probabilities calculated using junction tree approach: ’)
+for i = 21:60
+% JT potential that contains symptom ’i ’.
+jtpotnum = whichpot(jtpot ,i ,1);
+% find marginal probability of symptom ’i ’.
+margpot=sumpot(jtpot(jtpotnum),i ,0);
+% calculate and display output of symptom probability
+symptom prob = margpot. table (1)./sum(margpot. table ); disp([’p(’ variable(i).name ’=1) ’ num2str(symptom prob)]);
+end
+
+
+%% Part 2
+disp(’ ’) % new line
+disp( ’Marginal probabilities calculated using node selection approach: ’)
+% Loop through a l l symptoms
+for i = 21:60
+% find a potential that contains symptom ’i ’
+symptom pot = pot(i);
+% From the conditional potential of the symptom, extract the potentials t % the symptom is conditionally dependent on
+disease pot 1 index = symptom pot{1}. variables (2); disease pot 2 index = symptom pot{1}. variables (3); disease pot 3 index = symptom pot{1}. variables (4);
+% extract the disease potentials from the data , using the indices
+disease pot 1 = pot(disease pot 1 index ); disease pot 2 = pot(disease pot 2 index ); disease pot 3 = pot(disease pot 3 index );
+% We will now check the form of analysis by reconstructing our % potentials with new variables .
+symptom = 1; disease 1 = 2; disease 2 = 3; disease 3 = 4;
+new pot{symptom} = array ;
+new pot{symptom} = symptom pot{symptom};
+new pot{symptom}. variables = [symptom, disease 1 , disease 2 , disease 3 ];
+new pot{disease 1} = array;
+new pot{disease 1} = disease pot 1 {1}; new pot{disease 1 }. variables = disease 1 ;
+new pot{disease 2} = array;
+new pot{disease 2} = disease pot 2 {1}; new pot{disease 2 }. variables = disease 2 ;
+                                                              
+new pot{disease 3} = array;
+new pot{disease 3} = disease pot 3 {1}; new pot{disease 3 }. variables = disease 3 ;
+new variable(symptom).name = variable(i ).name;
+new variable(disease 1 ).name = variable(disease pot 1 index ).name; new variable(disease 2 ).name = variable(disease pot 2 index ).name; new variable(disease 3 ).name = variable(disease pot 3 index ).name;
+% Now calculate the joint distribution
+jointpot = multpots(new pot); % joint distribution
+% Extract the marginal probability for symptom ’i ’
+result = condpot(jointpot , symptom);
+% results
+disp([’p(’ variable(i).name ’=1) ’ num2str(result.table(1))]); end
+
+
+%% Part 3
+disp(’ ’) % new line
+disp( ’Marginal probabilities of diseases given evidential variables . ’)
+%Symptoms 1 to 5 are present in (state 1) and symptoms 6 to 10 not present ( state 2)
+% Set up indices for evidential variables
+
+s1 = 21; 
+s2 = 22; 
+s3 = 23; 
+s4 = 24; 
+s5 = 25; 
+s6 = 26;
+s7 = 27; 
+s8 = 28; 
+s9 = 29; 
+s10 = 30;
+
+set symptoms index = [s1 s2 s3 s4 s5 s6 s7 s8 s9 s10];
+%any binary values would do
+set symptoms values = [1 1 1 1 1 2 2 2 2 2];
+% Create a new potential with the evidential variables set
+newpot = setpot(pot, set symptoms index, set symptoms values);
+% Setpot removes variables , so we must eliminate redundant variables by  squeezing the potentials
+[newpot, newvars, oldvars]=squeezepots(newpot);
+% Set up the new junction tree
+[jtpot2 , jtsep2 , infostruct2]=jtree(newpot);
+% Propogate probabilities through absorption
+[jtpot2, jtsep2, logZ2]=absorption(jtpot2,jtsep2,infostruct2);
+%Transform back to original variables after absorption
+jtpot2=changevar(jtpot2 ,newvars , oldvars );
+
+% Loop through each disease and calcuate the new probability given the  evidential variables .
+for i = 1:20
+% find a single JT potential that contains disease ’i ’.
+jtpotnum = whichpot(jtpot2,i,1);
+% sum over everything but symptom ’i ’.
+margpot=sumpot(jtpot2(jtpotnum),i ,0);
+% calculate and display output of symptom probability
+symptom prob = margpot. table (1)./sum(margpot. table );
+disp([’p(’ variable(i).name ’=1 | s1:10) ’ num2str(symptom prob)]);
+end
+
