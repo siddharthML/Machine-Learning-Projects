@@ -39,7 +39,7 @@ all positives.
 
 4) Train cascade.
 
-- Done with OpenCV command.
+- Done with OpenCV command. (Uses adaboost)
 
 Negative and Positive images need description files:
 
@@ -65,3 +65,5 @@ You will superimpose the positive images on the negative image
 backgrounds so ultimately the image size will be the same.
 
 Have ~ double the positive images compare to negative for training.
+
+(For more detailed look see [Quora.](https://www.quora.com/How-do-Haar-cascades-work))
