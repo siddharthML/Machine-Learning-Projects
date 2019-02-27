@@ -1,3 +1,5 @@
+# Check Video 17 on Sentdex OpenCV playlist https://www.youtube.com/playlist?list=PLQVvvaa0QuDdttJXlLtAJxJetJcqmqlQq for details.
+
 """
 Code is in Linux so only going over some notes here:
 
