@@ -4,7 +4,7 @@ Surprisingly, there are few resources that take you through the entire automated
 
 ![AlgoTrade](https://images-na.ssl-images-amazon.com/images/I/41fubq1c4nL._SX348_BO1,204,203,200_.jpg)
 
-**Unfortunately**, this book became outdated pretty quickly as the yahoo APIs along with some code formatting in R changed. I have updated the code till chapter 7 of this book. Haven't had a chance to come back and update the remaining 3 chapters. 
+**Unfortunately**, this book became outdated pretty quickly as the yahoo APIs along with some code formatting in R changed. I have updated the code till chapter 7 (Simulation and Backtesting) of this book. Haven't had a chance to come back and update the remaining 3 chapters. 
 
 ## Contents
 
