@@ -4,7 +4,10 @@ This is a report outlining the multi-modal emotion recognition system that was c
 
 Three modalities were assessed: heart-rate, voice, and galvanic skin response.
 
-The main equipment used was the [affectiva wrist sensor](https://www.affectiva.com/) which records electrodermal activities and heart rate changes. Macbook air's sound recording system was used to capture changes in voice response.
+The main equipment used was the [empatica wrist sensor](https://www.empatica.com/research/e4/) which records electrodermal activities and heart rate changes. Macbook air's sound recording system was used to capture changes in voice response.
+
+![empatica](https://www.empatica.com/assets/images/e4/e4_back-lg-hdpi.jpg)
+![empatica2](https://www.empatica.com/assets/images/e4/solutions_image_2-lg-hdpi.jpg)
 
 After the sensor data was collected, relevant features were extracted that could help classify the different stress levels faced by the subjects in this experiment.
 
