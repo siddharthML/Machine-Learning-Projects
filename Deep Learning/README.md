@@ -9,3 +9,13 @@ An implementation of neural networks without DL libraries is available in the UC
 Supplementary material in the form of Goodfellow's excellent book *Deep Learning* is provided for theoretical and mathematical explanation of various Deep Learning topics.
 
 ![DL](https://images-na.ssl-images-amazon.com/images/I/61fim5QqaqL._SX373_BO1,204,203,200_.jpg)
+
+# Supplementary Resources
+
+To further understand implementational aspects of DL models there probably isn't a better course out there than Stanford's [CS231n: Convolutional Neural Networks for Visual Recognition](http://cs231n.stanford.edu/)
+
+For a more beginner friendly approach to DL: Andrew Ng's 5 part [Coursera](https://www.coursera.org/specializations/deep-learning) speicialization is the way to go (or search youtube for the playlist of his course). 
+
+A deeper explanation of mathematical aspects of DL is available on Hugo Larochelle's youtube playlist [here.](https://www.youtube.com/playlist?list=PL6Xpj9I5qXYEcOhn7TqghAJ6NAPrNmUBH)
+
+
