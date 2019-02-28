@@ -1,0 +1,53 @@
+# HEATMAP : STATIC AND INTERACTIVE
+
+#Heat maps allow us to simultaneously visualize clusters of samples and features. First hierarchical clustering is done of both the rows and the columns of the data matrix. The columns/rows of the data matrix are re-ordered according to the hierarchical clustering result, putting similar observations close to each other. The blocks of ‘high’ and ‘low’ values are adjacent in the data matrix. Finally, a color scheme is applied for the visualization and the data matrix is displayed. Visualizing the data matrix in this way can help to find the variables that appear to be characteristic for each sample cluster.
+
+#There are a multiple numbers of R packages and functions for drawing interactive andstatic heatmaps, including:
+#• heatmap() [R base function, stats package]: Draws a simple heatmap
+#• heatmap.2 () [gplots R package]: Draws an enhanced heatmap compared to the R base function.
+#pheatmap() [pheatmap R package]: Draws pretty heatmaps and provides more control to change the appearance of heatmaps.
+#• d3heatmap() [d3heatmap R package]: Draws an interactive/clickable heatmap
+#• Heatmap() [ComplexHeatmap R/Bioconductor package]: Draws, annotates and arranges complex heatmaps (very useful for genomic data analysis.
+
+#=================
+
+#DATA PREPROCESSING
+data("mtcars")
+df <- scale(metcars)
+
+#================
+
+#R BASE HEATMAP
+
+#base code
+
+#heatmap(x, scale = "row")
+
+#• x: a numeric matrix
+#• scale: a character indicating if the values should be centered and scaled in either the row direction or the column direction, or none. Allowed values are in c(“row”, “column”, “none”). Default is “row”.
+
+heatmap(df, scale = "none")
+
+#================
+
+#It’s possible to specify a color palette using the argument col, which can be defined as follow:
+
+col<- colorRampPalette(c("red", "white", "blue"))(256)
+
+#• Or, using RColorBrewer color palette:
+
+library("RColorBrewer")
+col <- colorRampPalette(brewer.pal(10, "RdYlBu"))(256)
+
+#Additionally, you can use the argument RowSideColors and ColSideColors to annotate rows and columns, respectively
+#For example, in the the R code below will customize the heatmap as follow:
+#1. An RColorBrewer color palette name is used to change the appearance
+#2. The argument RowSideColors and ColSideColors are used to annotate rows and columns respectively. The expected values for these options are a vector containing color names specifying the classes for rows/columns.
+
+# Use RColorBrewer color palette names
+library("RColorBrewer")
+col <- colorRampPalette(brewer.pal(10, "RdYlBu"))(256)
+heatmap(df, scale = "none", col = col,
+RowSideColors = rep(c("blue", "pink"), each = 16),
+ColSideColors = c(rep("purple", 5), rep("orange", 6)))
+

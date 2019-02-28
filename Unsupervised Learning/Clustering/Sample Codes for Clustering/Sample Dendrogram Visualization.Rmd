@@ -1,0 +1,86 @@
+# VISUALIZING DENDROGRAMS***
+
+library(cluster)
+library(factoextra)
+#We show how to save and to zoom a large dendrogram.
+
+#Load Data
+data(USArrests)
+
+#Compute distances and hierarchical clustering
+
+dd <- dist(scale(USArrests), method = "euclidean")
+hc <- hclust(dd, method = "ward.D2")
+
+#=====
+
+#VARIETY OF VISUALIZATION
+
+#We’ll use the function fviz_dend()[in factoextra R package].
+
+fviz_dend(hc, cex = 0.5)
+
+# You can use the arguments main, sub, xlab, ylab to change plot titles as follow:
+
+fviz_dend(hc, cex = 0.5)
+
+#To draw a horizontal dendrogram, type this:
+fviz_dend(hc, cex = 0.5, horiz = TRUE)
+
+# ADD RECTANGLES AROUND DENDROGRAM GROUPS **
+#It’s also possible to cut the tree at a given height for partitioning the data into multiple groups. In this case, it's possible to color branches by groups and add rectangle around each group.
+
+fviz_dend(hc, k = 4, # Cut in four groups
+cex = 0.5, # label size
+k_colors = c("#2E9FDF", "#00AFBB", "#E7B800", "#FC4E07"),
+color_labels_by_k = TRUE, # color labels by groups
+rect = TRUE, # Add rectangle around groups
+rect_border = c("#2E9FDF", "#00AFBB", "#E7B800", "#FC4E07"),
+rect_fill = TRUE)
+
+# To change the plot theme, use the argument ggtheme, which allowed values include ggplot2 official themes [ theme_gray(), theme_bw(), theme_minimal(), theme_classic(), theme_void()] or any other user-defined ggplot2 themes.
+
+fviz_dend(hc, k = 4, # Cut in four groups
+cex = 0.5, # label size
+k_colors = c("#2E9FDF", "#00AFBB", "#E7B800", "#FC4E07"),
+color_labels_by_k = TRUE, # color labels by groups
+ggtheme = theme_gray() # Change theme
+)
+
+#Allowed values for k_color include brewer palettes from RColorBrewer Package (e.g. “RdBu”, “Blues”, “Dark2”, “Set2”, . . . ; ) and scientific journal palettes from ggsci R package (e.g.: “npg”, “aaas”, “lancet”, “jco”, “ucscgb”, “uchicago”, “simpsons” and “rickandmorty”). 
+
+fviz_dend(hc, cex = 0.5, k = 4, # Cut in four groups
+k_colors = "jco")
+
+#==================
+
+# CIRCULAR DENDROGRAMS
+
+#Additionally, you can plot a circular dendrogram using the option type = “circular”.
+
+fviz_dend(hc, cex = 0.5, k = 4,
+k_colors = "jco", type = "circular")
+
+#=============
+
+#POLYGENIC TREE DENDROGRAMS
+
+#To plot a phylogenic-like tree, use type = “phylogenic” and repel = TRUE (to avoid labels overplotting). This functionality requires the R package igraph.
+
+install.packages("igraph")
+library(igraph)
+
+fviz_dend(hc, k = 4, k_colors = "jco",
+type = "phylogenic", repel = TRUE)
+
+# The default layout for phylogenic trees is “layout.auto”. Allowed values are one of: c(“layout.auto”, “layout_with_drl”, “layout_as_tree”, “layout.gem”, “layout.mds”, “layout_with_lgl”).
+
+fviz_dend(hc, k = 4, # Cut in four groups
+k_colors = "jco",
+type = "phylogenic", repel = TRUE,
+phylo_layout = "layout.gem")
+
+#===============
+
+# ZOOMING IN ON DENDROGRAMS
+

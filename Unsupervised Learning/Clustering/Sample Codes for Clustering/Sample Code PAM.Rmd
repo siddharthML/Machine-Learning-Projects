@@ -1,0 +1,74 @@
+#K-Medoids
+# K-medoid is a robust alternative to k-means clustering. This means that, the algorithm is less sensitive to noise and outliers, compared to k-means, because it uses medoids as cluster centers instead of means (used in k-means).
+
+data("USArrests")
+df <- scale(USArrests)
+head(df, n = 3)
+
+#=========
+
+# The function pam() [cluster package] and pamk() [fpc package] can be used to compute PAM. The function pamk() does not require a user to decide the number of clusters K.
+
+# GENERAL FORM OF PAM CODE
+
+# pam(x, k, metric = "euclidean", stand = FALSE)
+
+#(****switch between Euclidean and Manhattan****)
+
+#=======
+#Libraries used
+#If not installed already then:
+#install.packages (c("cluster", "factoextra"))
+library(factoextra)
+library(cluster)
+#========
+
+#OPTIMAL NUMBER OF CLUSTERS
+
+#To estimate the optimal number of clusters, we’ll use the average silhouette method. The idea is to compute PAM algorithm using different values of clusters k. Next, the average clusters silhouette is drawn according to the number of clusters. The average silhouette measures the quality of a clustering. A high average silhouette width indicates a good clustering. The optimal number of clusters k is the one that maximize the average silhouette over a range of possible values for k
+
+fviz_nbclust(df, pam, method = "silhouette") + theme_classic()
+
+#================
+
+#COMPUTING PAM CLUSTERING
+
+pam.res <- pam(df, 2)
+print(pam.res)
+
+# The printed output shows:
+#• the cluster medoids: a matrix, which rows are the medoids and columns are
+#variables
+#• the clustering vector: A vector of integers (from 1:k) indicating the cluster to
+#which each point is allocated
+
+#==============
+
+#*** If you want to add the point classifications to the original data, use this:
+dd <- cbind(USArrests, cluster = pam.res$cluster)
+head(dd, n = 3)
+
+#=============
+
+#ACESSING RESULT OF PAM FUNCTIONS
+
+#The function pam() returns an object of class pam which components include:
+#• medoids: Objects that represent clusters
+#• clustering: a vector containing the cluster number of each object
+
+#These components can be accessed as follow:
+#pam.res$medoids returns the US states (or data points) that act as medoids for the two clusters.
+pam.res$medoids 
+head(pam.res$clustering)
+
+#=============
+
+# VISUALIZING PAM CLUSTERS
+
+fviz_cluster(pam.res,
+palette = c("#00AFBB", "#FC4E07"), # color palette
+ellipse.type = "t", # Concentration ellipse
+repel = TRUE, # Avoid label overplotting (slow)
+ggtheme = theme_classic()
+)
+
