@@ -5,9 +5,6 @@
 # ARuler
 Mesure distance using apple ARKit
 
-
-## Preview
-  <img src="./Design/preview_vertical.gif" width="320"/>
   
 ## Requirements
 * Xcode 9
