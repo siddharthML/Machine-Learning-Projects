@@ -5,7 +5,6 @@
 # ARuler
 Mesure distance using apple ARKit
 
-[中文文档](./README.md)
 
 ## Preview
   <img src="./Design/preview_vertical.gif" width="320"/>
