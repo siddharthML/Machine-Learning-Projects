@@ -4,7 +4,9 @@ The TensorFlow Practice repository contains some practice code for implementing 
 
 This repository also contains Géron's original implementation in the Hands on Machine Learning folder.
 
-An implementation of neural networks without DL libraries is available in the UCL Assignments folder along with an alternate implementation in PyTorch. Research paper for UCL Deep Learning module looking at CNN model performances in analyzing Amazon deforestation is also available here.
+An implementation of neural networks without DL libraries is available in the UCL Assignments folder along with an alternate implementation in PyTorch. 
+
+Research paper on Transfer Learning in the field of vision analyzing CNN and VGG model performances on Amazon deforestation dataset is also available here.
 
 Supplementary material in the form of Goodfellow's excellent book *Deep Learning* is provided for theoretical and mathematical explanation of various Deep Learning topics.
 
