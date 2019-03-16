@@ -31,5 +31,60 @@ More details and supplementary resources available inside the folders.
 * Hands on Machine Learning
 * TensorFlow Practice
 * UCL Assignments
+  * Training A Neural Network
+  * Training NN Pytorch
+  * Transfer Learning
+    * CNN Amazon Deforestation.pdf
+    * Instruction to run group project.pdf
 * Deep Learning Book.pdf
 * README.md
+
+[6) Graphical Models](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Graphical%20Models)
+* Python BRML Toolbox
+* UCL Assignment
+  * Junction Trree and Node Search Algorithm.m
+  * Graphical Models Assignment2.pdf
+* UCL Lecture Notes
+* BRML David Barber.pdf
+* Belief Netowrks in Latex.pdf
+* GM and Variational Inference Jordan.pdf
+* README.md
+
+[7) Machine Learning with R](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Machine%20Learning%20with%20R)
+* MLR Toolbox Library
+  * Tasks.Rmd
+  * Learners.Rmd
+  * Training a Learner.Rmd
+  * Predicting.Rmd
+  * Resampling.Rmd
+  * Tuning.Rmd
+  * Benchmarking.Rmd
+  
+* UCL Assignment
+  * Implementation
+  * Assignment Outline.pdf
+  * Write Up.pdf
+  
+* README.md
+
+[8) Multi-Task Learning](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Multi-Task%20Learning)
+* Sluice Networks Master
+* Overview of Multi-Task Learning.pdf
+* README.md
+
+[9) Natural Language Processing](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Natural%20Language%20Processing)
+* Biomedical Event Extractor.ipynb
+* Speech and Language Processing.pdf
+* README.md
+
+[10) Online Ensemble Models](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Online%20Ensemble%20Models)
+* R Implementation
+  * Best Offline ARMA
+  * Feature Selection Algos
+  * Online ARMA Lag Experts
+  * Online Lag + Non-Linear Experts
+  * Online Non-Linear Experts
+  
+ * Predicting Commodity Futures Prices Using Online Learning.pdf
+ * Prediction Learning and Games.pdf
+ * README.md
