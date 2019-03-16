@@ -61,7 +61,7 @@ More details and supplementary resources available inside the folders.
   * Benchmarking.Rmd
   
 * UCL Assignment
-  * Implementation
+  * Aritificially Intelligent Wine Tasting Implementation
   * Assignment Outline.pdf
   * Write Up.pdf
   
@@ -103,4 +103,46 @@ More details and supplementary resources available inside the folders.
 * Introduction to Online Convex Optimization.pdf
 * Online Learning for Time Series.pdf
 * Predicting Commodity Futures Prices Using Online Learning.pdf
+* README.md
+
+[12) Reinforcement Learning](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Reinforcement%20Learning)
+* RL Sutton Book Code
+* TensorFlow OpenAI RL
+* TensorFlow RL Practice
+* README.md
+* Reinforcement Learning Richard Sutton.pdf
+
+[13) Self-Driving Car](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Self-Driving%20Car)
+* Distance Detection
+* Object Detection
+* Trial Images
+* README.md
+
+[14) Supervised Learning](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Supervised%20Learning)
+* Model Validation Principles
+* Topic1 Linear Regression
+* Topic2 Logistic Regression
+* Topic3 Multiclass Classification and NN
+* Topic4 Neural Networks
+* Topic5 Regularized Linear Regression
+* Topic6 SVM
+* Topic7 KMeans and PCA
+* Topic8 Recommender System
+* README.md
+
+[15) Unsupervised Learning](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Unsupervised%20Learning)
+* Clustering
+  * Exercises
+  * Sample Codes for Clustering
+    * Sample Code AHC.Rmd
+    * Sample Code PAM.Rmd
+    * Sample Dendrogram Visualization.Rmd
+    * Sample Heatmap.Rmd
+  * Cluster Analysis in R.pdf
+  
+* UCL Assignments
+  * Unsupervised Learning and K Means
+  * Mixture of Gaussians
+  * Autoencoders
+  
 * README.md
