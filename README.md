@@ -88,3 +88,19 @@ More details and supplementary resources available inside the folders.
  * Predicting Commodity Futures Prices Using Online Learning.pdf
  * Prediction Learning and Games.pdf
  * README.md
+ 
+[11) Online Learning](https://github.com/Sidc1991/Machine-Learning-Projects/tree/master/Online%20Learning)
+* Python Implementation
+  * Baseline 1 - Sanity Check.ipynb
+  * Baseline 2 - Slowly Moving Coefficients.ipynb
+  * Baseline 3 - Abrupt Change.ipynb
+  * Baseline 4 - Correlated Noise.ipynb
+  * Experimental Result Stock Market.ipynb
+  * Experimental Result Temperature.ipynb
+  * Metal Aluminium Futures.ipynb
+  * Metal Copper Future.ipynb
+ 
+* Introduction to Online Convex Optimization.pdf
+* Online Learning for Time Series.pdf
+* Predicting Commodity Futures Prices Using Online Learning.pdf
+* README.md
